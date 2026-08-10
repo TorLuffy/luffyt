@@ -241,13 +241,13 @@ const CARDIO_DEFAULT = {maquina:'Cinta', tiempoObj:20, velObj:'5,4', inclObj:5};
    Se muestra la más reciente aplicable como objetivo precargado (editable); las anteriores quedan
    accesibles en un historial desplegable por ejercicio. */
 const COACH_HISTORY = {
-  d1e1:[{micro:3, texto:'¡Muy buena! 50kg 8-7-'}],
-  d1e2:[{micro:2, texto:'50kg a 6'}, {micro:3, texto:'7-6-'}],
-  d1e3:[{micro:2, texto:'12kg 15-13'}, {micro:3, texto:'14kg a 10'}],
-  d1e4:[{micro:2, texto:'Cuenta solo los discos. Bájale 20-40kg y aplica corrección'}, {micro:3, texto:'¡Muy buena! 70kg a 8 · 60kg a 12'}],
-  d1e5:[{micro:2, texto:'15-15'}, {micro:3, texto:'7kg a 12'}],
-  d1e6:[{micro:2, texto:'Sube peso y a 10'}, {micro:3, texto:'La esterilla no es para la lumbar, sino entre la canilla y el rodillo, para dar más recorrido a la pierna'}],
-  d1e7:[{micro:2, texto:'Sube peso y a 12'}, {micro:3, texto:'14-13'}],
+  d1e1:[{micro:3, texto:'¡Muy buena! 50kg 8-7-'}, {micro:4, texto:'55kg a 6'}],
+  d1e2:[{micro:2, texto:'50kg a 6'}, {micro:3, texto:'7-6-'}, {micro:4, texto:'8-8-'}],
+  d1e3:[{micro:2, texto:'12kg 15-13'}, {micro:3, texto:'14kg a 10'}, {micro:4, texto:'12-12-'}],
+  d1e4:[{micro:2, texto:'Cuenta solo los discos. Bájale 20-40kg y aplica corrección'}, {micro:3, texto:'¡Muy buena! 70kg a 8 · 60kg a 12'}, {micro:4, texto:'70kg 12-10'}],
+  d1e5:[{micro:2, texto:'15-15'}, {micro:3, texto:'7kg a 12'}, {micro:4, texto:'14-13'}],
+  d1e6:[{micro:2, texto:'Sube peso y a 10'}, {micro:3, texto:'La esterilla no es para la lumbar, sino entre la canilla y el rodillo, para dar más recorrido a la pierna'}, {micro:4, texto:'12-12 ¡muy buena!'}],
+  d1e7:[{micro:2, texto:'Sube peso y a 12'}, {micro:3, texto:'14-13'}, {micro:4, texto:'15-15'}],
 
   d2e1:[{micro:2, texto:'Cuenta solo los discos. Corrige el movimiento'}, {micro:3, texto:'35kg (disco de 20+15) a 6'}],
   d2e2:[{micro:2, texto:'Corregir'}, {micro:3, texto:'50kg a 6'}],
@@ -1481,11 +1481,8 @@ render();
 </script>
 
 <script>
-/* Registro del service worker: hace que Luffyt funcione sin internet una vez instalada */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js').catch(function(){});
-  });
+  window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
 }
 </script>
 
