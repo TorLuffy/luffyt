@@ -809,8 +809,10 @@ function viewEntreno(){
         const isTip = tipTxt && objVal===tipTxt && (e.obj==null||e.obj==='');
         const older=coachHistoryFor(ex.id, micro).slice(latest?1:0);
         const open = S.ui.histOpen===ex.id;
+        const sinDirectriz = (objVal==null||objVal==='');
         return `<div class="field objetivo"><label>Objetivo del coach (directriz)${isTip?' <span class="pill acc">nuevo feedback</span>':''}</label>
-          <input type="text" placeholder="Ej: 40 kg × 8 · RIR 2" value="${esc(objVal)}" onchange="setObj('${ex.id}',this.value)"></div>
+          <input type="text" placeholder="Sin directriz — puedes escribir la tuya" value="${esc(objVal)}" onchange="setObj('${ex.id}',this.value)"></div>
+          ${sinDirectriz?`<div class="note" style="margin-top:4px">El coach no dejó directriz para este ejercicio en el microciclo ${micro}.</div>`:''}
           ${targets?`<div class="note" style="margin-top:4px">🎯 Reps objetivo por serie: ${targets.map((t,k)=>`S${k+1} a ${t}`).join(' · ')}</div>`:''}
           ${older.length?`
           <div class="coachhist">
@@ -1479,7 +1481,6 @@ function exportRangeCSV(){
 
 render();
 </script>
-
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
