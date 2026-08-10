@@ -1,12 +1,13 @@
 /* Service worker de Luffyt — cachea la app para que funcione 100% sin internet.
    Sube la versión (CACHE) cada vez que cambie la app para forzar la actualización. */
-const CACHE = 'luffyt-v21';
+const CACHE = 'luffyt-v22';
 const ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './icon-maskable-512.png'
 ];
 
 self.addEventListener('install', e => {
