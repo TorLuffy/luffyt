@@ -1400,7 +1400,17 @@ function exportJSON(){
 function importJSON(inp){
   const f=inp.files[0]; if(!f) return;
   const r=new FileReader();
-  r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.days&&!d.work) throw 0; S=d; save(); render(); toast('Datos importados ✅'); }catch(e){ toast('Archivo no válido'); } };
+  r.onload=()=>{ try{
+    const d=JSON.parse(r.result); if(!d.days&&!d.work) throw 0;
+    // COMBINA (no reemplaza): lo importado rellena huecos; lo que ya tienes manda si coincide
+    S.days    =Object.assign({}, d.days||{},     S.days||{});
+    S.work    =Object.assign({}, d.work||{},     S.work||{});
+    S.meals   =Object.assign({}, d.meals||{},    S.meals||{});
+    S.lib     =Object.assign({}, d.lib||{},      S.lib||{});
+    S.vidNotes=Object.assign({}, d.vidNotes||{}, S.vidNotes||{});
+    const cs=currentSession(); if(cs){ S.ui.micro=cs.micro; S.ui.dia=cs.dia; S.ui.xlMicro=cs.micro; }
+    save(); render(); toast('Datos importados ✅');
+  }catch(e){ toast('Archivo no válido'); } };
   r.readAsText(f);
 }
 function exportCSV(){
