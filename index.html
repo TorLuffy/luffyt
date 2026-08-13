@@ -249,21 +249,21 @@ const COACH_HISTORY = {
   d1e6:[{micro:2, texto:'Sube peso y a 10'}, {micro:3, texto:'La esterilla no es para la lumbar, sino entre la canilla y el rodillo, para dar más recorrido a la pierna'}, {micro:4, texto:'12-12 ¡muy buena!'}],
   d1e7:[{micro:2, texto:'Sube peso y a 12'}, {micro:3, texto:'14-13'}, {micro:4, texto:'15-15'}],
 
-  d2e1:[{micro:2, texto:'Cuenta solo los discos. Corrige el movimiento'}, {micro:3, texto:'35kg (disco de 20+15) a 6'}],
-  d2e2:[{micro:2, texto:'Corregir'}, {micro:3, texto:'50kg a 6'}],
-  d2e3:[{micro:2, texto:'Sube peso y a 10'}, {micro:3, texto:'¡Muy buena! 12-12'}],
-  d2e4:[{micro:2, texto:'50kg a 8, pero con la corrección'}, {micro:3, texto:'60kg a 6'}],
-  d2e5:[{micro:2, texto:'Contrae mejor, sin mover el codo'}, {micro:3, texto:'15-13'}],
-  d2e6:[{micro:2, texto:'Sube peso y a 8'}, {micro:3, texto:'Mantén peso y repes'}],
-  d2e7:[{micro:2, texto:'15-13'}, {micro:3, texto:'15-15'}],
+  d2e1:[{micro:2, texto:'Cuenta solo los discos. Corrige el movimiento'}, {micro:3, texto:'35kg (disco de 20+15) a 6'}, {micro:4, texto:'8-7-'}],
+  d2e2:[{micro:2, texto:'Corregir'}, {micro:3, texto:'50kg a 6'}, {micro:4, texto:'Corrección por audios de WhatsApp, lo vemos en la llamada'}],
+  d2e3:[{micro:2, texto:'Sube peso y a 10'}, {micro:3, texto:'¡Muy buena! 12-12'}, {micro:4, texto:'15-13'}],
+  d2e4:[{micro:2, texto:'50kg a 8, pero con la corrección'}, {micro:3, texto:'60kg a 6'}, {micro:4, texto:'8-8-'}],
+  d2e5:[{micro:2, texto:'Contrae mejor, sin mover el codo'}, {micro:3, texto:'15-13'}, {micro:4, texto:'15-15'}],
+  d2e6:[{micro:2, texto:'Sube peso y a 8'}, {micro:3, texto:'Mantén peso y repes'}, {micro:4, texto:'10-8-'}],
+  d2e7:[{micro:2, texto:'15-13'}, {micro:3, texto:'15-15'}, {micro:4, texto:'Sube peso y a 10 · 15kg a 18'}],
 
-  d3e1:[{micro:2, texto:'Solo discos y corrige posición'}, {micro:3, texto:'8-8-'}],
-  d3e2:[{micro:2, texto:'Solo discos, 8-6-'}, {micro:3, texto:'8-7-'}],
-  d3e3:[{micro:2, texto:'18kg a 8'}, {micro:3, texto:'10-8-'}],
-  d3e4:[{micro:3, texto:'10-12'}],
-  d3e5:[{micro:2, texto:'Corrige'}, {micro:3, texto:'15-15'}],
-  d3e6:[{micro:2, texto:'Igual día 1 (sube peso y a 12)'}, {micro:3, texto:'15-14'}],
-  d3e7:[{micro:2, texto:'Sube peso y a 10'}, {micro:3, texto:'12-12'}],
+  d3e1:[{micro:2, texto:'Solo discos y corrige posición'}, {micro:3, texto:'8-8-'}, {micro:4, texto:'30kg a 5 · 25kg a 8'}],
+  d3e2:[{micro:2, texto:'Solo discos, 8-6-'}, {micro:3, texto:'8-7-'}, {micro:4, texto:'8-8-'}],
+  d3e3:[{micro:2, texto:'18kg a 8'}, {micro:3, texto:'10-8-'}, {micro:4, texto:'10-10'}],
+  d3e4:[{micro:3, texto:'10-12'}, {micro:4, texto:'10-12'}],
+  d3e5:[{micro:2, texto:'Corrige'}, {micro:3, texto:'15-15'}, {micro:4, texto:'17-16'}],
+  d3e6:[{micro:2, texto:'Igual día 1 (sube peso y a 12)'}, {micro:3, texto:'15-14'}, {micro:4, texto:'15-15'}],
+  d3e7:[{micro:2, texto:'Sube peso y a 10'}, {micro:3, texto:'12-12'}, {micro:4, texto:'Sube peso y a 10 · 36kg a 15'}],
 
   d4e1:[{micro:2, texto:'Solo discos, a 10'}, {micro:3, texto:'¡Muy buena! 35kg a 6'}],
   d4e2:[{micro:3, texto:'18kg a 10'}],
@@ -291,6 +291,28 @@ function parseSeriesTargets(text){
   if(!/^\d+(?:-\d*)*$/.test(t)) return null;   // solo dígitos y guiones
   const parts=t.split('-').filter(x=>x!=='');
   return parts.length>=2 ? parts.map(Number) : null;
+}
+/* Saca de la directriz el peso objetivo y las reps por serie, para prerrellenar.
+   Ej: "55kg a 6" -> {carga:'55', reps:[6]} · "50kg 8-7-" -> {carga:'50', reps:[8,7]}
+       "15-13" -> {carga:null, reps:[15,13]} · "sube peso y a 10" -> {carga:null, reps:[10]} */
+function parseTarget(text){
+  if(text==null||text==='') return null;
+  const t=String(text).replace(/–/g,'-');
+  let carga=null;
+  const kg=t.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
+  if(kg) carga=kg[1].replace(',','.');
+  const rest=t.replace(/(\d+(?:[.,]\d+)?)\s*kg/ig,' ').replace(/\([^)]*\)/g,' ');
+  let reps=null;
+  const seq=rest.replace(/\s/g,'').match(/\d+(?:-\d*)+/);   // 8-7- / 15-13
+  if(seq){ const p=seq[0].split('-').filter(x=>x!==''); if(p.length) reps=p.map(Number); }
+  if(!reps){ const a=rest.match(/a\s*(\d+)/i); if(a) reps=[+a[1]]; }   // "a 10"
+  if(carga==null && !reps) return null;
+  return {carga, reps};
+}
+/* reps objetivo para la serie i (si el array tiene 1, es uniforme para todas) */
+function targetReps(tgt, i){
+  if(!tgt||!tgt.reps) return null;
+  return tgt.reps.length===1 ? tgt.reps[0] : (tgt.reps[i]!=null?tgt.reps[i]:null);
 }
 
 const MUSCLE = {
@@ -495,27 +517,30 @@ function sessionHasData(w){
     (e.series||[]).some(s=>s&&(s.c||s.r||s.rir)) || e.res || e.obs);
 }
 function sessionKey(m,d){ return 'm'+m+'-d'+d; }
-/* Sesión que toca ahora: la ya registrada hoy, o la primera pendiente de la secuencia */
+function nextAfter(m,d){ let nd=d+1, nm=m; if(nd>4){nd=1; nm=m+1;} if(nm>N_MICROS){nm=N_MICROS; nd=4;} return {micro:nm, dia:nd}; }
+/* Sesión que toca: la SIGUIENTE al último día que entrenaste de verdad.
+   Si el último se registró hoy, seguimos en él. Si NO has registrado nada aún,
+   devuelve null → se respeta el microciclo/día que tengas seleccionado. */
 function currentSession(){
   const today = todayStr();
+  const done = [];
   for(const [k,w] of Object.entries(S.work)){
-    if(w.fecha===today && sessionHasData(w)){
-      const mt=k.match(/m(\d+)-d(\d+)/);
-      if(mt) return {micro:+mt[1], dia:+mt[2]};
-    }
+    const mt=k.match(/m(\d+)-d(\d+)/);
+    if(mt && sessionHasData(w)) done.push({micro:+mt[1], dia:+mt[2], fecha:w.fecha||''});
   }
-  for(let m=1; m<=N_MICROS; m++) for(let d=1; d<=4; d++)
-    if(!sessionHasData(S.work[sessionKey(m,d)])) return {micro:m, dia:d};
-  return {micro:N_MICROS, dia:4};
+  if(!done.length) return null;
+  done.sort((a,b)=> a.micro-b.micro || a.dia-b.dia);  // el más avanzado
+  const last = done[done.length-1];
+  if(last.fecha===today) return {micro:last.micro, dia:last.dia};  // hoy sigues en él
+  return nextAfter(last.micro, last.dia);
 }
 
-/* Al abrir: colocarse en HOY y en la sesión que toca */
+/* Al abrir: colocarse en HOY y en la sesión que toca (o mantener la seleccionada si no hay datos) */
 S.ui.fecha = todayStr();
 if(S.ui.tab==='excel') S.ui.tab='cal';
 (function(){
   const cs = currentSession();
-  S.ui.micro = cs.micro; S.ui.dia = cs.dia;
-  S.ui.xlMicro = cs.micro;
+  if(cs){ S.ui.micro = cs.micro; S.ui.dia = cs.dia; S.ui.xlMicro = cs.micro; }
 })();
 
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -734,6 +759,16 @@ function stampFecha(){
 function setObj(id,v){ exrec(id).obj=v; save(); }
 function setObs(id,v){ stampFecha(); exrec(id).obs=v; save(); }
 function setSerie(id,i,f,v){ stampFecha(); const e=exrec(id); e.series[i]=e.series[i]||{}; e.series[i][f]=v; save(); }
+/* Guarda toda la fila leyendo sus 3 casillas (carga, reps, rir) del DOM.
+   Así, al tocar cualquiera (p.ej. el RIR), se guardan también el peso/reps prerrellenados. */
+function setSerieRow(id,i,inp){
+  stampFecha();
+  const tr=inp.closest('tr'); if(!tr) return;
+  const ins=tr.querySelectorAll('input');
+  const e=exrec(id); e.series[i]=e.series[i]||{};
+  e.series[i].c=ins[0].value; e.series[i].r=ins[1].value; e.series[i].rir=ins[2].value;
+  save();
+}
 function setRes(id,v){ stampFecha(); const e=exrec(id); e.res=(e.res===v?null:v); save(); render(); }
 function toggleHist(exId){ S.ui.histOpen = (S.ui.histOpen===exId?null:exId); save(); render(); }
 /* Doble toque en una casilla de serie: copia el valor de la serie anterior (o del microciclo previo si es la 1ª) */
@@ -765,9 +800,10 @@ function viewEntreno(){
       ${[1,2,3,4].map(d=>`<span class="chip ${dia===d?'sel':''}" onclick="setDia(${d})">Día ${d} · ${DAYS[d].pat}</span>`).join('')}
     </div>
     ${(function(){
-      const cs=currentSession(), aqui=(cs.micro===micro&&cs.dia===dia);
+      const cs=currentSession();
       const hoy=(w.fecha===todayStr());
-      if(aqui) return `<div class="note" style="margin-top:8px">${hoy&&sessionHasData(w)?'✏️ Estás registrando la sesión de hoy.':'👉 Es la sesión que te toca ahora.'}</div>`;
+      if(!cs || (cs.micro===micro&&cs.dia===dia))
+        return `<div class="note" style="margin-top:8px">${hoy&&sessionHasData(w)?'✏️ Estás registrando la sesión de hoy.':'👉 Es la sesión que te toca ahora.'}</div>`;
       return `<div class="note" style="margin-top:8px">Estás viendo otra sesión.
         <a href="#" onclick="setMicro(${cs.micro});setDia(${cs.dia});return false">Ir a la que toca (M${cs.micro} · Día ${cs.dia})</a></div>`;
     })()}
@@ -780,19 +816,22 @@ function viewEntreno(){
     const pe=prevW?(prevW.ex[ex.id]||{series:[]}):null;
     const prevTxt = pe && pe.series.some(s=>s&&(s.c||s.r)) ?
       'Anterior (M'+(micro-1)+'): '+pe.series.map(s=>s?`${s.c||'–'}kg×${s.r||'–'}${s.rir?' RIR'+s.rir:''}`:'–').join(' · ') : '';
-    // Directriz vigente y objetivo de reps por serie (si la directriz es del tipo "10-12")
+    // Directriz vigente → peso y reps objetivo (para prerrellenar; el usuario solo pone el RIR)
     const latest=coachTipFor(ex.id, micro);
     const tipTxt=latest?latest.texto:null;
     const objVal = (e.obj!=null && e.obj!=='') ? e.obj : (tipTxt||'');
-    const targets=parseSeriesTargets(objVal);
+    const tgt=parseTarget(objVal);
     let rows='';
     for(let i=0;i<ex.s;i++){
       const s=e.series[i]||{};
-      const tgt = targets && targets[i]!=null ? targets[i] : null;
-      rows+=`<tr><td>S${i+1}${tgt!=null?` <span class="repgoal">🎯${tgt}</span>`:''}</td>
-        <td><input type="number" step="0.5" inputmode="decimal" placeholder="kg" value="${s.c??''}" onchange="setSerie('${ex.id}',${i},'c',this.value)" ondblclick="copyPrev('${ex.id}',${i},'c',this)"></td>
-        <td><input type="number" inputmode="numeric" placeholder="${tgt!=null?tgt:ex.r}" value="${s.r??''}" onchange="setSerie('${ex.id}',${i},'r',this.value)" ondblclick="copyPrev('${ex.id}',${i},'r',this)"></td>
-        <td><input type="number" inputmode="numeric" placeholder="RIR" value="${s.rir??''}" onchange="setSerie('${ex.id}',${i},'rir',this.value)" ondblclick="copyPrev('${ex.id}',${i},'rir',this)"></td></tr>`;
+      const rt=targetReps(tgt,i);                                   // reps objetivo de esta serie
+      const cargaVal = (s.c!=null&&s.c!=='') ? s.c : (tgt&&tgt.carga!=null?tgt.carga:'');
+      const repsVal  = (s.r!=null&&s.r!=='') ? s.r : (rt!=null?rt:'');
+      const pre = (cargaVal!=='' && (s.c==null||s.c===''));         // se está mostrando el objetivo, no un dato tuyo
+      rows+=`<tr><td>S${i+1}${rt!=null?` <span class="repgoal">🎯${rt}</span>`:''}</td>
+        <td><input type="number" step="0.5" inputmode="decimal" placeholder="kg" value="${cargaVal}" onfocus="this.select()" onchange="setSerieRow('${ex.id}',${i},this)" ondblclick="copyPrev('${ex.id}',${i},'c',this)"></td>
+        <td><input type="number" inputmode="numeric" placeholder="${rt!=null?rt:ex.r}" value="${repsVal}" onfocus="this.select()" onchange="setSerieRow('${ex.id}',${i},this)" ondblclick="copyPrev('${ex.id}',${i},'r',this)"></td>
+        <td><input type="number" inputmode="numeric" placeholder="RIR" value="${s.rir??''}" onfocus="this.select()" onchange="setSerieRow('${ex.id}',${i},this)" ondblclick="copyPrev('${ex.id}',${i},'rir',this)"></td></tr>`;
     }
     const libCount=(S.lib[ex.n]||[]).length;
     html+=`
@@ -813,7 +852,8 @@ function viewEntreno(){
         return `<div class="field objetivo"><label>Objetivo del coach (directriz)${isTip?' <span class="pill acc">nuevo feedback</span>':''}</label>
           <input type="text" placeholder="Sin directriz — puedes escribir la tuya" value="${esc(objVal)}" onchange="setObj('${ex.id}',this.value)"></div>
           ${sinDirectriz?`<div class="note" style="margin-top:4px">El coach no dejó directriz para este ejercicio en el microciclo ${micro}.</div>`:''}
-          ${targets?`<div class="note" style="margin-top:4px">🎯 Reps objetivo por serie: ${targets.map((t,k)=>`S${k+1} a ${t}`).join(' · ')}</div>`:''}
+          ${(tgt&&tgt.reps&&tgt.reps.length>1)?`<div class="note" style="margin-top:4px">🎯 Reps objetivo por serie: ${tgt.reps.map((t,k)=>`S${k+1} a ${t}`).join(' · ')}</div>`:''}
+          ${(tgt&&(tgt.carga!=null||tgt.reps))?`<div class="note" style="margin-top:4px">✍️ Peso y reps ya puestos según el objetivo — solo pon tu RIR (y ajusta si moviste otra cosa).</div>`:''}
           ${older.length?`
           <div class="coachhist">
             <a href="#" onclick="toggleHist('${ex.id}');return false">🕘 ${open?'Ocultar':'Ver'} directrices anteriores (${older.length})</a>
