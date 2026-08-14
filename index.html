@@ -260,16 +260,16 @@ const COACH_HISTORY = {
   d3e1:[{micro:2, texto:'Solo discos y corrige posición'}, {micro:3, texto:'8-8-'}, {micro:4, texto:'30kg a 5 · 25kg a 8'}],
   d3e2:[{micro:2, texto:'Solo discos, 8-6-'}, {micro:3, texto:'8-7-'}, {micro:4, texto:'8-8-'}],
   d3e3:[{micro:2, texto:'18kg a 8'}, {micro:3, texto:'10-8-'}, {micro:4, texto:'10-10'}],
-  d3e4:[{micro:3, texto:'10-12'}, {micro:4, texto:'10-12'}],
+  d3e4:[{micro:3, texto:'12-10'}, {micro:4, texto:'12-10'}],
   d3e5:[{micro:2, texto:'Corrige'}, {micro:3, texto:'15-15'}, {micro:4, texto:'17-16'}],
   d3e6:[{micro:2, texto:'Igual día 1 (sube peso y a 12)'}, {micro:3, texto:'15-14'}, {micro:4, texto:'15-15'}],
   d3e7:[{micro:2, texto:'Sube peso y a 10'}, {micro:3, texto:'12-12'}, {micro:4, texto:'Sube peso y a 10 · 36kg a 15'}],
 
-  d4e1:[{micro:2, texto:'Solo discos, a 10'}, {micro:3, texto:'¡Muy buena! 35kg a 6'}, {micro:4, texto:'7-8'}],
+  d4e1:[{micro:2, texto:'Solo discos, a 10'}, {micro:3, texto:'¡Muy buena! 35kg a 6'}, {micro:4, texto:'8-7'}],
   d4e2:[{micro:3, texto:'18kg a 10'}],
   d4e3:[{micro:2, texto:'15-15'}, {micro:3, texto:'Sube una placa y a 10'}, {micro:4, texto:'12-12'}],
   d4e4:[{micro:3, texto:'30kg a 10'}],
-  d4e5:[{micro:3, texto:'12-15'}, {micro:4, texto:'Cógelo más cerrado, un palmo · 15-13'}],
+  d4e5:[{micro:3, texto:'15-12'}, {micro:4, texto:'Cógelo más cerrado, un palmo · 15-13'}],
   d4e6:[{micro:3, texto:'Como el día 2'}, {micro:4, texto:'Mantén y aprieta 2 seg la contracción'}],
   d4e7:[{micro:3, texto:'15-13'}, {micro:4, texto:'15-15'}]
 };
@@ -852,8 +852,6 @@ function viewEntreno(){
         return `<div class="field objetivo"><label>Objetivo del coach (directriz)${isTip?' <span class="pill acc">nuevo feedback</span>':''}</label>
           <input type="text" placeholder="Sin directriz — puedes escribir la tuya" value="${esc(objVal)}" onchange="setObj('${ex.id}',this.value)"></div>
           ${sinDirectriz?`<div class="note" style="margin-top:4px">El coach no dejó directriz para este ejercicio en el microciclo ${micro}.</div>`:''}
-          ${(tgt&&tgt.reps&&tgt.reps.length>1)?`<div class="note" style="margin-top:4px">🎯 Reps objetivo por serie: ${tgt.reps.map((t,k)=>`S${k+1} a ${t}`).join(' · ')}</div>`:''}
-          ${(tgt&&(tgt.carga!=null||tgt.reps))?`<div class="note" style="margin-top:4px">✍️ Peso y reps ya puestos según el objetivo — solo pon tu RIR (y ajusta si moviste otra cosa).</div>`:''}
           ${older.length?`
           <div class="coachhist">
             <a href="#" onclick="toggleHist('${ex.id}');return false">🕘 ${open?'Ocultar':'Ver'} directrices anteriores (${older.length})</a>
