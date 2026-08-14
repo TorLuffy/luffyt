@@ -1531,7 +1531,17 @@ render();
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js').catch(function(){}); });
+  var __luffytReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if (__luffytReloaded) return; __luffytReloaded = true; window.location.reload();
+  });
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').then(function(reg){
+      // buscar actualizaciones cada vez que se abre y periódicamente
+      reg.update();
+      setInterval(function(){ reg.update(); }, 60*60*1000);
+    }).catch(function(){});
+  });
 }
 </script>
 
