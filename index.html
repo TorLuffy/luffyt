@@ -301,11 +301,12 @@ function parseTarget(text){
   let carga=null;
   const kg=t.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
   if(kg) carga=kg[1].replace(',','.');
-  const rest=t.replace(/(\d+(?:[.,]\d+)?)\s*kg/ig,' ').replace(/\([^)]*\)/g,' ');
+  let rest=t.replace(/(\d+(?:[.,]\d+)?)\s*kg/ig,' ').replace(/\([^)]*\)/g,' ');
+  rest=rest.replace(/\d+\s*seg\w*/ig,' ');                  // "2 seg" son segundos, no reps
   let reps=null;
   const seq=rest.replace(/\s/g,'').match(/\d+(?:-\d*)+/);   // 8-7- / 15-13
   if(seq){ const p=seq[0].split('-').filter(x=>x!==''); if(p.length) reps=p.map(Number); }
-  if(!reps){ const a=rest.match(/a\s*(\d+)/i); if(a) reps=[+a[1]]; }   // "a 10"
+  if(!reps){ const a=rest.match(/\ba\s+(\d+)/i); if(a) reps=[+a[1]]; }   // "a 10" (palabra suelta "a")
   if(carga==null && !reps) return null;
   return {carga, reps};
 }
@@ -825,8 +826,10 @@ function viewEntreno(){
     for(let i=0;i<ex.s;i++){
       const s=e.series[i]||{};
       const rt=targetReps(tgt,i);                                   // reps objetivo de esta serie
-      const cargaVal = (s.c!=null&&s.c!=='') ? s.c : (tgt&&tgt.carga!=null?tgt.carga:'');
-      const repsVal  = (s.r!=null&&s.r!=='') ? s.r : (rt!=null?rt:'');
+      const ps=(pe&&pe.series&&pe.series[i])||null;                  // misma serie de la semana anterior
+      // valor a mostrar: lo tuyo > objetivo de la directriz > lo de la semana anterior ("mantener")
+      const cargaVal = (s.c!=null&&s.c!=='') ? s.c : (tgt&&tgt.carga!=null ? tgt.carga : (ps&&ps.c?ps.c:''));
+      const repsVal  = (s.r!=null&&s.r!=='') ? s.r : (rt!=null ? rt : (ps&&ps.r?ps.r:''));
       const pre = (cargaVal!=='' && (s.c==null||s.c===''));         // se está mostrando el objetivo, no un dato tuyo
       rows+=`<tr><td>S${i+1}${rt!=null?` <span class="repgoal">🎯${rt}</span>`:''}</td>
         <td><input type="number" step="0.5" inputmode="decimal" placeholder="kg" value="${cargaVal}" onfocus="this.select()" onchange="setSerieRow('${ex.id}',${i},this)" ondblclick="copyPrev('${ex.id}',${i},'c',this)"></td>
@@ -1537,7 +1540,6 @@ if ('serviceWorker' in navigator) {
   });
   window.addEventListener('load', function(){
     navigator.serviceWorker.register('sw.js').then(function(reg){
-      // buscar actualizaciones cada vez que se abre y periódicamente
       reg.update();
       setInterval(function(){ reg.update(); }, 60*60*1000);
     }).catch(function(){});
