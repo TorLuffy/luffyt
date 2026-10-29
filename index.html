@@ -148,6 +148,13 @@ table.xl td.lbl{text-align:left; color:var(--muted); font-size:12px}
 .alertbar b{color:inherit}
 .exchange{background:var(--bad-soft); color:var(--bad); border:1px solid var(--bad); border-radius:10px; padding:9px 11px; margin-top:8px; font-size:13px; line-height:1.4}
 .exchange b{color:inherit}
+.autowhy{margin-top:6px; font-size:12.5px; line-height:1.4; padding:7px 10px; border-radius:10px; background:var(--accent-soft); color:var(--accent-ink)}
+.autowhy.cuidado,.autowhy.baja{background:var(--bad-soft); color:var(--bad)}
+.autowhy.sube{background:var(--good-soft); color:var(--good)}
+.autowhy .note{margin-top:2px; color:inherit; opacity:.8}
+.anrow{display:flex; gap:8px; align-items:flex-start; padding:7px 0; border-top:1px solid var(--line)}
+.anrow:first-of-type{border-top:0}
+.ansem{margin-top:10px; padding:9px 11px; border-radius:10px; background:var(--good-soft); color:var(--good); font-size:13px; line-height:1.45}
 .exchange .note{color:var(--bad)}
 .cafbar{position:relative; height:11px; border-radius:999px; background:var(--surface2);
   border:1px solid var(--line); margin-top:10px; overflow:hidden}
@@ -437,6 +444,120 @@ function parseTarget(text){
 function targetReps(tgt, i){
   if(!tgt||!tgt.reps) return null;
   return tgt.reps.length===1 ? tgt.reps[0] : (tgt.reps[i]!=null?tgt.reps[i]:null);
+}
+
+/* ================= PROGRESIÓN AUTOMÁTICA (lo aprendido del coach) =================
+   Reglas sacadas de sus directrices durante la fase 1:
+   - Doble progresión: mismo peso, +1-2 reps por serie cada vez ("12-12" → "14-13" → "15-15"),
+     la 1ª serie siempre ≥ la 2ª.
+   - Cuando todas las series llegan al tope del rango → "sube peso y a <mínimo del rango>".
+   - Si sobran muchas reps (RIR ≥ 4) el peso se queda corto → subir ya.
+   - Si no llegas al mínimo yendo al límite (RIR 0-1) → bajar un escalón.
+   - Molestias anotadas → mantener y priorizar técnica.
+   - 3 sesiones seguidas sin progresar → bajar ~10% y volver a construir.
+   Se calcula con el registro anterior del MISMO día de la fase (mismo ejercicio y rango). */
+const PAIN_RX=/molest|dolor|duele|calambre|tir[oó]n|pinchazo|periostitis|lesi[oó]n|sensibilidad/i;
+function exRange(ex){ const m=String(ex.r).match(/(\d+)\s*-\s*(\d+)/); return m?[+m[1],+m[2]]:[+ex.r||10,+ex.r||10]; }
+function numKg(v){ const n=parseFloat(String(v??'').replace(',','.')); return isNaN(n)?null:n; }
+function fmtKg(n){ return String(Math.round(n*10)/10).replace('.',','); }
+/* Registros anteriores de un ejercicio en ese día de la fase, del más reciente al más antiguo */
+function exSessions(exId, f, d, beforeMicro){
+  const out=[];
+  for(const [k,w] of Object.entries(S.work)){
+    const p=parseKey(k); if(!p||p.f!==f||p.d!==d||p.m>=beforeMicro) continue;
+    const e=(w.ex||{})[exId]; if(!e) continue;
+    const ser=(e.series||[]).filter(s=>s&&s.r!==''&&s.r!=null&&parseFloat(s.r)>0);
+    if(ser.length) out.push({m:p.m, e, ser});
+  }
+  return out.sort((a,b)=>b.m-a.m);
+}
+function sesScore(h, n){
+  const ser=h.ser.slice(0,n), cs=ser.map(s=>numKg(s.c)).filter(x=>x!=null);
+  return (cs.length?Math.max(...cs):0)*100 + ser.reduce((a,s)=>a+(parseFloat(s.r)||0),0);
+}
+/* Tipo de carga: mancuernas (saltos de 1-2 kg), discos/barra (2,5 kg) o placas de máquina/polea
+   (el salto depende de la máquina: se aprende de los pesos que ya usaste). */
+function equipo(ex){
+  const n=ex.n.toLowerCase();
+  if(/mancuerna/.test(n)) return 'mancuernas';
+  if(/discos|barra|hip thrust|búlgara|banca|sentadilla/.test(n)) return 'discos';
+  return 'placas';
+}
+/* Siguiente / anterior escalón de peso: primero los pesos que ya has usado en ese ejercicio
+   (pesos reales de tu gimnasio); si no, el salto típico del material. null = "un escalón" sin número. */
+function loadStep(ex, c, dir){
+  const nombre=ex.n.toLowerCase(), usados=new Set();
+  for(const w of Object.values(S.work)) for(const [id,e] of Object.entries(w.ex||{})){
+    const otro=((ALL_EX[id]||{}).n||'').toLowerCase();
+    if(!otro || !(otro===nombre || otro.includes(nombre) || nombre.includes(otro))) continue;
+    for(const s of e.series||[]){ const v=numKg(s&&s.c); if(v) usados.add(v); }
+  }
+  const lista=[...usados].sort((a,b)=>a-b);
+  if(dir>0){ const n=lista.find(v=>v>c+0.01 && v<=c*1.35+1); if(n) return n; }
+  else { const n=lista.filter(v=>v<c-0.01 && v>=c*0.7).pop(); if(n) return n; }
+  const q=equipo(ex), inc = q==='mancuernas' ? (c<8?1:2) : q==='discos' ? 2.5 : null;
+  return inc==null ? null : Math.max(0, c+dir*inc);
+}
+/* Máximo estimado (Epley) a partir de peso, reps y RIR: sirve para dimensionar el salto */
+function e1rm(c, r, rir){ return c*(1+(r+(rir==null?1:rir))/30); }
+function repsCon(max, c){ return Math.floor(30*(max/c-1)-2); }     // reps esperables dejando RIR 2
+function autoTip(ex, f, d, micro){
+  const hist=exSessions(ex.id, f, d, micro); if(!hist.length) return null;
+  const last=hist[0], [lo,hi]=exRange(ex), n=ex.s;
+  const ser=last.ser.slice(0,n);
+  const reps=ser.map(s=>parseFloat(s.r)||0);
+  const rirs=ser.map(s=>numKg(s.rir));
+  const rirOk=rirs.filter(x=>x!=null), rmin=rirOk.length?Math.min(...rirOk):null;
+  const cs=ser.map(s=>numKg(s.c)).filter(x=>x!=null), c=cs.length?Math.max(...cs):null;
+  const conPeso=c!=null&&c>0;
+  const hecho=`M${last.m}: ${ser.map((s,i)=>`${conPeso?fmtKg(numKg(s.c)??c)+'×':''}${reps[i]}${rirs[i]!=null?' RIR'+rirs[i]:''}`).join(' · ')}`;
+  const kg=v=>fmtKg(v)+'kg ';
+  if(PAIN_RX.test(last.e.obs||''))
+    return {texto:(conPeso?kg(c):'')+reps.join('-'), porque:'Anotaste molestias: repite lo mismo cuidando la técnica. Si vuelve a molestar, baja peso.', hecho, tipo:'cuidado'};
+  if(hist.length>=3 && conPeso){
+    const [a,b,z]=hist.slice(0,3).map(h=>sesScore(h,n));
+    if(a<=b && b<=z){
+      const nc=loadStep(ex,c,-1);
+      return {texto:`${nc!=null?kg(nc):'Baja un escalón · '}a ${hi}`, porque:'Llevas 3 sesiones sin progresar: baja un poco el peso, haz más reps y vuelve a construir.', hecho, tipo:'cuidado'};
+    }
+  }
+  const tope = reps.length>=n && reps.every(r=>r>=hi);
+  const sobra = rmin!=null && rmin>=4 && reps.every(r=>r>=lo);
+  if(tope || sobra){
+    if(!conPeso) return {texto:`Añade un disco · a ${lo}`, porque:`Llegaste a ${hi} en todas las series: añade algo de carga y vuelve a ${lo}.`, hecho, tipo:'sube'};
+    const max=e1rm(c, reps[0], rirs[0]);
+    let nc=loadStep(ex,c,+1);
+    const lejos = reps[0]>=hi+3 || (rmin!=null&&rmin>=4);
+    const porque = tope ? `Llegaste al tope del rango (${hi}) en todas las series → sube peso${lejos?' (bastante: ibas muy por encima)':''}.`
+                        : 'Te sobraban 4 o más reps (RIR alto) → el peso se queda corto, súbelo.';
+    if(nc==null){
+      const esc2 = lejos ? 'Sube 2 escalones' : 'Sube un escalón';
+      return {texto:`${esc2} · a ${lo}`, porque:porque+' Apunta el peso nuevo al hacerlo.', hecho, tipo:'sube'};
+    }
+    // si ibas muy por encima del rango, sigue subiendo escalones mientras puedas hacer el rango medio
+    const medio=Math.round((lo+hi)/2);
+    for(let k=0; k<6; k++){ const sig=loadStep(ex,nc,+1); if(sig==null || repsCon(max,sig)<medio) break; nc=sig; }
+    const r=Math.max(lo, Math.min(hi, repsCon(max,nc)));
+    return {texto:`${kg(nc)}a ${r}`, porque, hecho, tipo:'sube'};
+  }
+  if(reps[0]<lo){
+    if(conPeso && rmin!=null && rmin<=1){
+      const nc=loadStep(ex,c,-1);
+      return {texto:`${nc!=null?kg(nc):'Baja un escalón · '}a ${lo}`, porque:`No llegaste al mínimo del rango (${lo}) yendo al límite → baja un escalón.`, hecho, tipo:'baja'};
+    }
+    return {texto:`${conPeso?kg(c):''}a ${lo}`, porque:`Mismo peso, busca llegar al mínimo del rango (${lo}).`, hecho, tipo:'mantener'};
+  }
+  const corto = last.e.res==='corto';
+  const t=[];
+  for(let i=0;i<n;i++){
+    const r=reps[i]!=null&&reps[i]>0 ? reps[i] : (t[i-1]!=null?t[i-1]:lo), rir=rirs[i];
+    const paso = corto ? 0 : rir==null ? 1 : rir>=3 ? 3 : rir>=2 ? 2 : 1;
+    let v=Math.min(hi, Math.max(lo, r+paso));
+    if(i>0) v=Math.min(v, t[i-1]);           // la 1ª serie siempre ≥ la 2ª
+    t.push(v);
+  }
+  return {texto:`${conPeso?kg(c):''}${t.join('-')}`,
+          porque: corto?'Te quedaste corto: repite el mismo objetivo.':`Mismo peso y ${rmin!=null&&rmin>=2?'+2':'+1'} rep por serie hasta llegar a ${hi}.`, hecho, tipo:corto?'mantener':'reps'};
 }
 
 const MUSCLE = {
@@ -967,9 +1088,11 @@ function viewEntreno(){
     const prevTxt = pe && pe.series.some(s=>s&&(s.c||s.r)) ?
       'Anterior (M'+(micro-1)+'): '+pe.series.map(s=>s?`${s.c||'–'}kg×${s.r||'–'}${s.rir?' RIR'+s.rir:''}`:'–').join(' · ') : '';
     // Directriz vigente → peso y reps objetivo (para prerrellenar; el usuario solo pone el RIR)
-    const latest=coachTipFor(ex.id, micro);
+    let latest=coachTipFor(ex.id, micro);
+    if(fase===2 && latest && latest.micro!==micro) latest=null;   // en fase 2 el coach solo manda en el micro que escribió
     const isChange = !!(latest && latest.change);          // el coach cambió el ejercicio en este microciclo
-    const tipTxt=(latest && !isChange) ? latest.texto : null;
+    const auto = latest ? null : autoTip(ex, fase, dia, micro);   // si no hay directriz del coach, la calcula la app
+    const tipTxt=(latest && !isChange) ? latest.texto : (auto ? auto.texto : null);
     const objVal = (e.obj!=null && e.obj!=='') ? e.obj : (tipTxt||'');
     const tgt=parseTarget(objVal);
     let rows='';
@@ -1003,9 +1126,12 @@ function viewEntreno(){
         const older=coachHistoryFor(ex.id, micro).slice(latest?1:0);
         const open = S.ui.histOpen===ex.id;
         const sinDirectriz = (objVal==null||objVal==='') && !isChange;
-        return `<div class="field objetivo"><label>Objetivo del coach (directriz)${isTip?' <span class="pill acc">nuevo feedback</span>':''}</label>
+        const [lo,hi]=exRange(ex);
+        const pill = !isTip ? '' : auto ? ' <span class="pill acc">🤖 progresión auto</span>' : ' <span class="pill acc">nuevo feedback</span>';
+        return `<div class="field objetivo"><label>Objetivo (directriz)${pill}</label>
           <input type="text" placeholder="Sin directriz — puedes escribir la tuya" value="${esc(objVal)}" onchange="setObj('${ex.id}',this.value)"></div>
-          ${sinDirectriz?`<div class="note" style="margin-top:4px">El coach no dejó directriz para este ejercicio en el microciclo ${micro}.</div>`:''}
+          ${auto&&isTip?`<div class="autowhy ${auto.tipo}">${esc(auto.porque)}<div class="note">${esc(auto.hecho)}</div></div>`:''}
+          ${sinDirectriz?`<div class="note" style="margin-top:4px">Primera vez con este ejercicio: elige un peso con el que llegues a ${lo}-${hi} reps dejando 1-2 en reserva (RIR 1-2). A partir de ahí la app calcula la progresión.</div>`:''}
           ${older.length?`
           <div class="coachhist">
             <a href="#" onclick="toggleHist('${ex.id}');return false">🕘 ${open?'Ocultar':'Ver'} directrices anteriores (${older.length})</a>
@@ -1023,8 +1149,48 @@ function viewEntreno(){
         <textarea placeholder="Sensaciones, técnica, molestias…" onchange="setObs('${ex.id}',this.value)">${esc(e.obs??'')}</textarea></div>
     </div>`;
   }
+  html+=viewAnalisis(fase, micro, dia, day, w);
   html+=`<div class="note" style="text-align:center;margin-top:4px">Descansos: libre pesado 2-4' · máquina 2-3' · analítico 2-2.5'</div>`;
   return html;
+}
+
+/* Análisis al terminar: cómo fue cada ejercicio frente a la vez anterior y qué toca la próxima.
+   Si con esta sesión se completa el microciclo, añade el resumen de la semana. */
+function viewAnalisis(fase, micro, dia, day, w){
+  if(!sessionHasData(w)) return '';
+  let filas='', mejor=0, igual=0, peor=0;
+  for(const ex of day.items){
+    const e=(w.ex||{})[ex.id]; if(!e) continue;
+    const hoy=exSessions(ex.id, fase, dia, micro+1)[0];
+    if(!hoy || hoy.m!==micro) continue;
+    const antes=exSessions(ex.id, fase, dia, micro)[0];
+    let flecha='🆕';
+    if(antes){ const a=sesScore(hoy,ex.s), b=sesScore(antes,ex.s);
+      if(a>b){ flecha='⬆️'; mejor++; } else if(a===b){ flecha='➡️'; igual++; } else { flecha='⬇️'; peor++; } }
+    const prox=autoTip(ex, fase, dia, micro+1);
+    filas+=`<div class="anrow"><span>${flecha}</span><div><b>${esc(ex.n)}</b>
+      ${prox?`<div class="note">Próxima vez: <b>${esc(prox.texto)}</b> — ${esc(prox.porque)}</div>`:''}</div></div>`;
+  }
+  if(!filas) return '';
+  const nd=PHASES[fase].nd, hechos=[];
+  for(let d=1; d<=nd; d++) if(sessionHasData(S.work[keyOf(fase,micro,d)])) hechos.push(d);
+  let semana='';
+  if(hechos.length===nd){
+    let m2=0,i2=0,p2=0,tot=0;
+    for(let d=1; d<=nd; d++) for(const ex of PHASES[fase].days[d].items){
+      const h=exSessions(ex.id, fase, d, micro+1)[0]; if(!h||h.m!==micro) continue;
+      const a=exSessions(ex.id, fase, d, micro)[0]; tot++;
+      if(!a) continue; const x=sesScore(h,ex.s), y=sesScore(a,ex.s);
+      if(x>y) m2++; else if(x===y) i2++; else p2++;
+    }
+    semana=`<div class="ansem">🏁 <b>Microciclo ${micro} completo</b> · ${tot} ejercicios: ⬆️ ${m2} mejoraron · ➡️ ${i2} igual · ⬇️ ${p2} bajaron.
+      ${p2>m2?'<br>Más bajadas que subidas: revisa sueño, comida y descanso; si se repite, toca una semana de descarga (mismos pesos, RIR 3-4).':'<br>¡Buen microciclo! Los objetivos del siguiente ya están calculados.'}</div>`;
+  }
+  return `<h2>📈 Análisis de esta sesión</h2>
+    <div class="card">
+      ${(mejor+igual+peor)?`<div class="note" style="margin-bottom:6px">Frente a la vez anterior: ⬆️ ${mejor} mejor · ➡️ ${igual} igual · ⬇️ ${peor} peor</div>`:''}
+      ${filas}${semana}
+    </div>`;
 }
 
 /* ================= COMIDAS ================= */
