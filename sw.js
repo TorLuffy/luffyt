@@ -1,6 +1,6 @@
 /* Service worker de Luffyt — cachea la app para que funcione 100% sin internet.
    Sube la versión (CACHE) cada vez que cambie la app para forzar la actualización. */
-const CACHE = 'luffyt-v36';
+const CACHE = 'luffyt-v37';
 const ASSETS = [
   './',
   './index.html',
@@ -11,7 +11,8 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache:'reload' = pide la versión nueva al servidor, sin usar la copia guardada del navegador (GitHub la guarda 10 min)
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
