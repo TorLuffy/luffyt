@@ -126,8 +126,8 @@ table.xl td.lbl{text-align:left; color:var(--muted); font-size:12px}
 .macros .m{background:var(--surface2); border-radius:10px; padding:8px 4px}
 .macros .m b{display:block; font-size:17px; font-variant-numeric:tabular-nums}
 .macros .m span{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted)}
-.daynav{display:flex; gap:6px; margin-bottom:12px}
-.daynav .chip{flex:1; text-align:center}
+.daynav{display:flex; gap:4px; margin-bottom:12px}
+.daynav .chip{flex:1; text-align:center; padding:6px 2px; line-height:1.2; min-width:0}
 .daynav .chip.sel{background:var(--accent); color:#141414; border-color:var(--accent); font-weight:700}
 .libitem{border-top:1px solid var(--line); padding:10px 0}
 .libitem:first-child{border-top:none; padding-top:0}
@@ -237,7 +237,65 @@ const DAYS = {
   ]}
 };
 
-const CARDIO_DEFAULT = {maquina:'Cinta', tiempoObj:20, velObj:'5,4', inclObj:5};
+/* ===== FASE 2 (desde oct-2026): 6 días, pierna / tirón / empuje ×2 ===== */
+const WARM2 = '1. Movilidad si es necesaria (indica la lesión si aplica)\n2. Triserie de activación: 3 ejercicios · 2-3 vueltas · sin fatiga\n3. Series de aproximación antes del primer ejercicio';
+WARM['Pierna']=WARM2; WARM['Tirón']=WARM2; WARM['Empuje']=WARM2;
+const DAYS2 = {
+  1:{pat:'Pierna', items:[
+    {id:'f2d1e1', n:'Aductor', s:2, r:'10-15'},
+    {id:'f2d1e2', n:'Femoral sentado', s:2, r:'8-12', v:'https://youtube.com/shorts/Zm2XM6tQr9s'},
+    {id:'f2d1e3', n:'Extensión de cuádriceps', s:2, r:'8-12', v:'https://www.instagram.com/reel/DJUWrY6oxZn/'},
+    {id:'f2d1e4', n:'Sentadilla hack', s:2, r:'6-10', v:'https://youtu.be/Qubs3SXnl1M'}
+  ]},
+  2:{pat:'Tirón', items:[
+    {id:'f2d2e1', n:'Hiperextensión', s:2, r:'8-12'},
+    {id:'f2d2e2', n:'Remo en T agarre abierto', s:2, r:'6-10', v:'https://youtu.be/D4L55vhtrFg'},
+    {id:'f2d2e3', n:'Jalón al pecho', s:2, r:'8-12'},
+    {id:'f2d2e4', n:'Predicador en máquina de placas', s:2, r:'8-12'},
+    {id:'f2d2e5', n:'Curl de bíceps con mancuernas (sentado)', s:2, r:'12-15'}
+  ]},
+  3:{pat:'Empuje', items:[
+    {id:'f2d3e1', n:'Press plano en máquina de discos', s:2, r:'5-8', v:'https://youtube.com/shorts/1U_9x6mkG8Q'},
+    {id:'f2d3e2', n:'Apertura en máquina', s:2, r:'10-15', v:'https://www.instagram.com/reel/DGOO1fEN5Vc/'},
+    {id:'f2d3e3', n:'Press inclinado en máquina de discos', s:2, r:'6-10', v:'https://youtube.com/shorts/jMFwKuxE4dA'},
+    {id:'f2d3e4', n:'Elevación lateral con mancuernas', s:2, r:'10-15', v:'https://youtu.be/AEDUG2pPZPk'},
+    {id:'f2d3e5', n:'Extensión de tríceps unilateral', s:2, r:'12-20', v:'https://www.instagram.com/reel/DQT5cFfCGyK/'}
+  ]},
+  4:{pat:'Pierna', items:[
+    {id:'f2d4e1', n:'Abductor', s:2, r:'8-15'},
+    {id:'f2d4e2', n:'Hip thrust', s:2, r:'6-12'},
+    {id:'f2d4e3', n:'Sentadilla búlgara', s:2, r:'8-15'},
+    {id:'f2d4e4', n:'Femoral sentado', s:2, r:'8-15', v:'https://youtube.com/shorts/Zm2XM6tQr9s'},
+    {id:'f2d4e5', n:'Extensión de cuádriceps', s:2, r:'5-8', v:'https://www.instagram.com/reel/DJUWrY6oxZn/'}
+  ]},
+  5:{pat:'Tirón', items:[
+    {id:'f2d5e1', n:'Hiperextensión', s:2, r:'8-12'},
+    {id:'f2d5e2', n:'Jalón en máquina de discos', s:2, r:'8-12'},
+    {id:'f2d5e3', n:'Remo en máquina agarre abierto', s:2, r:'12-15', v:'https://youtu.be/YwzZhKiVfPE'},
+    {id:'f2d5e4', n:'Curl de bíceps en polea baja', s:2, r:'8-12'},
+    {id:'f2d5e5', n:'Curl martillo con mancuernas', s:2, r:'10-15'}
+  ]},
+  6:{pat:'Empuje', items:[
+    {id:'f2d6e1', n:'Press militar en máquina de discos', s:2, r:'5-10', v:'https://youtu.be/dueAJw_T_LA'},
+    {id:'f2d6e2', n:'Press banca', s:2, r:'6-12'},
+    {id:'f2d6e3', n:'Press francés en polea', s:2, r:'8-12'},
+    {id:'f2d6e4', n:'Extensión de tríceps en polea alta unilateral', s:2, r:'10-15', v:'https://www.instagram.com/reel/DQT5cFfCGyK/'},
+    {id:'f2d6e5', n:'Elevación lateral en máquina de placas', s:2, r:'12-20'}
+  ]}
+};
+/* Fases: la 1 conserva sus claves 'm1-d1' (histórico); la 2 usa 'f2-m1-d1' */
+const PHASES = {
+  1:{label:'Fase 1 · Técnica', days:DAYS,  nd:4, prefix:''},
+  2:{label:'Fase 2',           days:DAYS2, nd:6, prefix:'f2-'}
+};
+function curFase(){ return (S && S.ui && PHASES[S.ui.fase]) ? S.ui.fase : 2; }
+function daysOf(f){ return PHASES[f].days; }
+function keyOf(f,m,d){ return PHASES[f].prefix+'m'+m+'-d'+d; }
+function parseKey(k){ const mt=String(k).match(/^(f2-)?m(\d+)-d(\d+)$/); return mt ? {f:mt[1]?2:1, m:+mt[2], d:+mt[3]} : null; }
+const ALL_EX = {}; for(const f of [1,2]) for(const d in PHASES[f].days) for(const e of PHASES[f].days[d].items) ALL_EX[e.id]=e;
+function sessLabel(f,m,d){ const p=PHASES[f].days[d]; return (f===2?'Fase 2 · ':'')+'Microciclo '+m+' · Día '+d+(p?' ('+p.pat+')':''); }
+
+const CARDIO_DEFAULT = {maquina:'Cinta', tiempoObj:20, velObj:'4,2', inclObj:6, kcalObj:200};   // fase 2
 
 /* Historial de directrices de progresión que LuffyFitnessCoach ha ido escribiendo por ejercicio.
    Cada entrada {micro, texto} es la directriz a aplicar EN ese microciclo (dada al revisar el anterior).
@@ -276,6 +334,68 @@ const COACH_HISTORY = {
   d4e6:[{micro:3, texto:'Como el día 2'}, {micro:4, texto:'Mantén y aprieta 2 seg la contracción'}],
   d4e7:[{micro:3, texto:'15-13'}, {micro:4, texto:'15-15'}]
 };
+/* Directrices de la fase 1, microciclos 7-9 (Excel del 29/10/2026) */
+[
+  ['d1e1',7,'29kg 12-10-8- · 50kg a 12'],
+  ['d1e1',8,'29kg 12-12-10 · 50kg 14-12'],
+  ['d1e1',9,'15-13-12- · 15-15'],
+  ['d1e2',7,'10-8-8-'],
+  ['d1e2',8,'25kg 8 · 20kg 10-10'],
+  ['d1e2',9,'Métele con máquina mejor'],
+  ['d1e3',7,'20kg a 12'],
+  ['d1e3',8,'15-13'],
+  ['d1e3',9,'15-13-12-'],
+  ['d1e4',7,'10-8-'],
+  ['d1e4',8,'10-10'],
+  ['d1e4',9,'A 12'],
+  ['d1e5',7,'14-13'],
+  ['d1e5',8,'15-15'],
+  ['d1e5',9,'17-16-'],
+  ['d1e6',7,'14-13-'],
+  ['d1e6',8,'15-15'],
+  ['d1e6',9,'Sube y a 12'],
+  ['d1e7',7,'15-15 y aprieta a 8'],
+  ['d1e7',8,'18-16- · 10-10'],
+  ['d1e7',9,'Sube y a 15-15 · 15-15'],
+  ['d2e1',7,'Sube placa y a 12'],
+  ['d2e1',9,'35kg a 8'],
+  ['d2e2',7,'A 15'],
+  ['d2e3',7,'Sube peso y a 12'],
+  ['d2e3',9,'52 a 15'],
+  ['d2e4',7,'A 15'],
+  ['d2e5',7,'18-16'],
+  ['d2e5',9,'Sube y a 12'],
+  ['d2e6',7,'15-13'],
+  ['d2e6',9,'Sube y a 15'],
+  ['d2e7',7,'Sube y a 10'],
+  ['d2e7',9,'12-12'],
+  ['d3e1',7,'10-8-'],
+  ['d3e1',8,'12-10'],
+  ['d3e2',7,'9-8-'],
+  ['d3e2',8,'10-10'],
+  ['d3e3',7,'17,5kg a 8'],
+  ['d3e3',8,'20kg 8 · 17,5kg 10'],
+  ['d3e4',7,'A 8'],
+  ['d3e4',8,'15-13-12-10'],
+  ['d3e5',8,'12-12'],
+  ['d3e6',7,'Sube y a 10'],
+  ['d3e6',8,'12-12'],
+  ['d3e7',7,'12-12'],
+  ['d3e7',8,'A 15'],
+  ['d4e1',7,'15-13-'],
+  ['d4e1',8,'15-15--'],
+  ['d4e2',7,'12-12'],
+  ['d4e2',8,'15-13'],
+  ['d4e3',7,'12-12'],
+  ['d4e3',8,'15-13'],
+  ['d4e4',7,'12-12'],
+  ['d4e4',8,'15-13'],
+  ['d4e5',7,'18-16'],
+  ['d4e5',8,'Sube peso y a 15 · 10kg a 20'],
+  ['d4e6',7,'10-8-'],
+  ['d4e6',8,'12-10'],
+  ['d4e7',8,'15-13']
+].forEach(([id,m,t])=>{ (COACH_HISTORY[id]=COACH_HISTORY[id]||[]).push({micro:m, texto:t}); });
 /* Directriz vigente para un ejercicio al ver un microciclo dado: la más reciente con micro<=actual */
 function coachTipFor(exId, atMicro){
   const h=COACH_HISTORY[exId]; if(!h||!h.length) return null;
@@ -323,10 +443,17 @@ const MUSCLE = {
   d1e1:'Cuádriceps', d1e2:'Pecho', d1e3:'Hombro', d1e4:'Cuádriceps', d1e5:'Hombro', d1e6:'Cuádriceps', d1e7:'Pecho',
   d2e1:'Espalda', d2e2:'Femoral/Glúteo', d2e3:'Espalda', d2e4:'Glúteo', d2e5:'Bíceps', d2e6:'Femoral', d2e7:'Tríceps',
   d3e1:'Cuádriceps', d3e2:'Hombro', d3e3:'Pecho', d3e4:'Cuádriceps', d3e5:'Hombro', d3e6:'Pecho', d3e7:'Cuádriceps',
-  d4e1:'Espalda', d4e2:'Femoral/Glúteo', d4e3:'Espalda', d4e4:'Glúteo', d4e5:'Bíceps', d4e6:'Femoral', d4e7:'Tríceps'
+  d4e1:'Espalda', d4e2:'Femoral/Glúteo', d4e3:'Espalda', d4e4:'Glúteo', d4e5:'Bíceps', d4e6:'Femoral', d4e7:'Tríceps',
+  // fase 2
+  f2d1e1:'Aductores', f2d1e2:'Femoral', f2d1e3:'Cuádriceps', f2d1e4:'Cuádriceps',
+  f2d2e1:'Lumbar', f2d2e2:'Espalda', f2d2e3:'Espalda', f2d2e4:'Bíceps', f2d2e5:'Bíceps',
+  f2d3e1:'Pecho', f2d3e2:'Pecho', f2d3e3:'Pecho', f2d3e4:'Hombro', f2d3e5:'Tríceps',
+  f2d4e1:'Glúteo', f2d4e2:'Glúteo', f2d4e3:'Cuádriceps/Glúteo', f2d4e4:'Femoral', f2d4e5:'Cuádriceps',
+  f2d5e1:'Lumbar', f2d5e2:'Espalda', f2d5e3:'Espalda', f2d5e4:'Bíceps', f2d5e5:'Bíceps',
+  f2d6e1:'Hombro', f2d6e2:'Pecho', f2d6e3:'Tríceps', f2d6e4:'Tríceps', f2d6e5:'Hombro'
 };
-const MUSCLES = ['Pecho','Espalda','Hombro','Cuádriceps','Femoral','Glúteo','Bíceps','Tríceps'];
-function muscleOf(name){ for(const d of [1,2,3,4]) for(const e of DAYS[d].items) if(e.n===name) return MUSCLE[e.id]||''; return ''; }
+const MUSCLES = ['Pecho','Espalda','Hombro','Cuádriceps','Femoral','Glúteo','Aductores','Lumbar','Bíceps','Tríceps'];
+function muscleOf(name){ for(const id in ALL_EX) if(ALL_EX[id].n===name && MUSCLE[id]) return MUSCLE[id]; return ''; }
 
 const GENERIC_VIDEOS = [
   {t:'Cómo progresar en cargas', u:'https://www.youtube.com/shorts/Zroe2IGTw3k'},
@@ -338,7 +465,7 @@ const GENERIC_VIDEOS = [
 
 const EXCEL_URL = 'https://docs.google.com/spreadsheets/d/1MxAAPUArkSDwt2aKnAb9DwyOLejWoJB3fyMDtuBSs8U/edit?gid=603243201#gid=603243201';
 // Excel personal de Aitor en su Drive (carpeta "Luffyt - Registro personal")
-const MI_EXCEL_URL = 'https://drive.google.com/file/d/1pZe3NgLogcviQmkoZUb232ZfAYwphJBJ/view';
+const MI_EXCEL_URL = 'https://docs.google.com/spreadsheets/d/1dCKpvK5aPuQlRqNVeLm-sW1Xf83KMbanwy4hrfhFs9Q/edit';
 // Columnas del registro personal (mismo orden que ese Excel)
 const REG_COLS = ['Fecha','Peso (kg)','Pasos','Máquina','Tiempo (min)','Velocidad','Inclinación','Kcal','Cafeína (mg)','Microciclo','Día','Ejercicio','Serie','Carga (kg)','Reps','RIR','Resultado','Observaciones'];
 
@@ -520,28 +647,34 @@ function sessionHasData(w){
   return !!w && Object.values(w.ex||{}).some(e=>
     (e.series||[]).some(s=>s&&(s.c||s.r||s.rir)) || e.res || e.obs);
 }
-function sessionKey(m,d){ return 'm'+m+'-d'+d; }
-function nextAfter(m,d){ let nd=d+1, nm=m; if(nd>4){nd=1; nm=m+1;} if(nm>N_MICROS){nm=N_MICROS; nd=4;} return {micro:nm, dia:nd}; }
-/* Sesión que toca: la SIGUIENTE al último día que entrenaste de verdad.
-   Si el último se registró hoy, seguimos en él. Si NO has registrado nada aún,
+function sessionKey(m,d,f){ return keyOf(f||curFase(),m,d); }
+function nextAfter(m,d,f){
+  const nd0=PHASES[f||curFase()].nd;
+  let nd=d+1, nm=m; if(nd>nd0){nd=1; nm=m+1;} if(nm>N_MICROS){nm=N_MICROS; nd=nd0;}
+  return {micro:nm, dia:nd};
+}
+/* Sesión que toca (dentro de la fase activa): la SIGUIENTE al último día que entrenaste de verdad.
+   Si el último se registró hoy, seguimos en él. Si NO has registrado nada en esa fase,
    devuelve null → se respeta el microciclo/día que tengas seleccionado. */
-function currentSession(){
+function currentSession(f){
+  f = f || curFase();
   const today = todayStr();
   const done = [];
   for(const [k,w] of Object.entries(S.work)){
-    const mt=k.match(/m(\d+)-d(\d+)/);
-    if(mt && sessionHasData(w)) done.push({micro:+mt[1], dia:+mt[2], fecha:w.fecha||''});
+    const p=parseKey(k);
+    if(p && p.f===f && sessionHasData(w)) done.push({micro:p.m, dia:p.d, fecha:w.fecha||''});
   }
   if(!done.length) return null;
   done.sort((a,b)=> a.micro-b.micro || a.dia-b.dia);  // el más avanzado
   const last = done[done.length-1];
   if(last.fecha===today) return {micro:last.micro, dia:last.dia};  // hoy sigues en él
-  return nextAfter(last.micro, last.dia);
+  return nextAfter(last.micro, last.dia, f);
 }
 
 /* Al abrir: colocarse en HOY y en la sesión que toca (o mantener la seleccionada si no hay datos) */
 S.ui.fecha = todayStr();
 if(S.ui.tab==='excel') S.ui.tab='cal';
+if(!PHASES[S.ui.fase]){ S.ui.fase=2; S.ui.micro=1; S.ui.dia=1; S.ui.xlMicro=1; }   // desde ahora, fase 2 por defecto
 (function(){
   const cs = currentSession();
   if(cs){ S.ui.micro = cs.micro; S.ui.dia = cs.dia; S.ui.xlMicro = cs.micro; }
@@ -573,8 +706,8 @@ function go(tab){ S.ui.tab=tab; save(); render(); window.scrollTo(0,0); }
 
 function render(){
   renderTabs();
-  const w = weekOf(S.ui.fecha), hdr=document.getElementById('hdrSub');
-  hdr.textContent = (w>=1&&w<=24) ? `Semana ${w} · Microciclo ${Math.min(w,N_MICROS)}` : 'Pretemporada';
+  const hdr=document.getElementById('hdrSub');
+  hdr.textContent = `${curFase()===2?'Fase 2':'Fase 1'} · Microciclo ${S.ui.micro||1}`;
   const m=document.getElementById('main');
   let body;
   if(S.ui.tab==='hoy') body=viewHoy();
@@ -632,7 +765,7 @@ function viewHoy(){
       <div class="field"><label>Inclinación</label><input type="number" step="0.5" inputmode="decimal" placeholder="${CARDIO_DEFAULT.inclObj}" value="${c.incl??''}" onchange="setCardio('incl',this.value)"></div>
       <div class="field"><label>Kcal</label><input type="number" inputmode="numeric" value="${c.kcal??''}" onchange="setCardio('kcal',this.value)"></div>
     </div>
-    <div class="copybox">Objetivo microciclo 1: cinta · 20 min · vel 5,4 · incl 5</div>
+    <div class="copybox">Objetivo fase 2: cinta · ${CARDIO_DEFAULT.tiempoObj} min · vel ${CARDIO_DEFAULT.velObj} · incl ${CARDIO_DEFAULT.inclObj} · ~${CARDIO_DEFAULT.kcalObj} kcal</div>
   </div>
   ${viewCafe()}
   <h2>📝 Notas del día</h2>
@@ -745,11 +878,19 @@ function viewCafe(){
 }
 
 /* ================= ENTRENO ================= */
-function wkey(){ return 'm'+S.ui.micro+'-d'+S.ui.dia; }
+function wkey(){ return keyOf(curFase(), S.ui.micro, S.ui.dia); }
+function prevKey(){ return S.ui.micro>1 ? keyOf(curFase(), S.ui.micro-1, S.ui.dia) : null; }
 function wrec(){ const k=wkey(); S.work[k]=S.work[k]||{ex:{}}; return S.work[k]; }
 function exrec(id){ const w=wrec(); w.ex[id]=w.ex[id]||{series:[]}; return w.ex[id]; }
 function setMicro(v){ S.ui.micro=parseInt(v); save(); render(); }
 function setDia(v){ S.ui.dia=v; save(); render(); }
+function setFase(f){
+  f=+f; if(!PHASES[f]) return;
+  S.ui.fase=f;
+  const cs=currentSession(f);
+  S.ui.micro = cs ? cs.micro : 1; S.ui.dia = cs ? cs.dia : 1;
+  save(); render();
+}
 function setWFecha(v){ wrec().fecha=v; save(); }
 /* Al registrar lo primero de la sesión, sella la fecha del día en que se entrenó */
 function stampFecha(){
@@ -781,7 +922,7 @@ function copyPrev(exId,i,field,inp){
   let val='';
   if(i>0){ val=(e&&e.series[i-1]||{})[field] ?? ''; }
   else{
-    const pw=S.work['m'+(S.ui.micro-1)+'-d'+S.ui.dia];
+    const pw=prevKey() && S.work[prevKey()];
     if(pw&&pw.ex[exId]) val=(pw.ex[exId].series[0]||{})[field] ?? '';
   }
   if(val===''||val==null){ toast('No hay valor anterior que copiar'); return; }
@@ -791,17 +932,22 @@ function copyPrev(exId,i,field,inp){
 }
 
 function viewEntreno(){
-  const dia=S.ui.dia, micro=S.ui.micro, day=DAYS[dia], w=S.work[wkey()]||{ex:{}};
-  const prevW = micro>1 ? (S.work['m'+(micro-1)+'-d'+dia]||{ex:{}}) : null;
+  const fase=curFase(), PH=PHASES[fase];
+  if(!PH.days[S.ui.dia]) S.ui.dia=1;
+  const dia=S.ui.dia, micro=S.ui.micro, day=PH.days[dia], w=S.work[wkey()]||{ex:{}};
+  const prevW = prevKey() ? (S.work[prevKey()]||{ex:{}}) : null;
   let html=`
   <div class="card">
+    <div class="filterchips" style="margin-top:0;margin-bottom:10px">
+      ${[2,1].map(f=>`<span class="chip ${fase===f?'on-good':''}" onclick="setFase(${f})">${PHASES[f].label}</span>`).join('')}
+    </div>
     <div class="row">
       <div class="field"><label>Microciclo</label>
         <select onchange="setMicro(this.value)">${Array.from({length:N_MICROS},(_,i)=>`<option value="${i+1}" ${micro===i+1?'selected':''}>Microciclo ${i+1}</option>`).join('')}</select></div>
       <div class="field"><label>Fecha sesión</label><input type="date" id="wFecha" value="${w.fecha??''}" onchange="setWFecha(this.value)"></div>
     </div>
     <div class="daynav" style="margin-top:10px">
-      ${[1,2,3,4].map(d=>`<span class="chip ${dia===d?'sel':''}" onclick="setDia(${d})">Día ${d} · ${DAYS[d].pat}</span>`).join('')}
+      ${Object.keys(PH.days).map(Number).map(d=>`<span class="chip ${dia===d?'sel':''}" onclick="setDia(${d})">Día ${d}<br><span style="font-size:10.5px">${PH.days[d].pat}</span></span>`).join('')}
     </div>
     ${(function(){
       const cs=currentSession();
@@ -1005,11 +1151,12 @@ function vidRow(url,label,note,onchange){
 }
 
 function viewVideos(){
-  const allNames=[...new Set([].concat(...[1,2,3,4].map(d=>DAYS[d].items.map(e=>e.n))))].sort((a,b)=>a.localeCompare(b));
+  const allEx=Object.values(ALL_EX);
+  const allNames=[...new Set(allEx.map(e=>e.n))].sort((a,b)=>a.localeCompare(b));
   const catalog=[];
   for(const n of allNames){
     const planVids=[];
-    for(const d of [1,2,3,4]) for(const e of DAYS[d].items) if(e.n===n){
+    for(const e of allEx) if(e.n===n){
       if(e.v&&!planVids.some(p=>p.url===e.v)) planVids.push({url:e.v,src:'plan'});
       if(e.tv&&!planVids.some(p=>p.url===e.tv)) planVids.push({url:e.tv,src:'tip'});
       if(e.t&&!planVids.some(p=>p.t===e.t)) planVids.push({t:e.t,src:'tip'});
@@ -1125,17 +1272,7 @@ function viewCal(){
   }
   const monthName=first.toLocaleDateString('es-ES',{month:'long',year:'numeric'});
   let html=`
-  <div class="card">
-    <a class="btn primary" style="display:block;text-align:center;text-decoration:none" href="${EXCEL_URL}" target="_blank" rel="noopener">📊 Abrir el Excel del plan (del coach)</a>
-    <div class="note" style="margin-top:6px">Para copiar tus datos a mano, celda a celda (ver "Exportar" más abajo).</div>
-  </div>
-  <div class="card">
-    <div class="exname">📤 Enviar el día a mi Excel</div>
-    <div class="note" style="margin-top:4px">Copia todo lo de hoy (peso, pasos, cardio y ejercicios) y pégalo en tu Excel personal — una fila por serie.</div>
-    <button class="btn primary" style="width:100%;margin-top:10px" id="cp-hoy" data-copy="${esc(buildTodayRows())}" onclick="copyText('cp-hoy')">📋 Copiar todo lo de hoy</button>
-    <a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="${MI_EXCEL_URL}" target="_blank" rel="noopener">📗 Abrir mi Excel personal</a>
-    <div class="note" style="margin-top:8px">Ábrelo en Hojas de cálculo → toca la primera celda vacía de la columna A → Pegar. Tú eliges cuándo hacerlo.</div>
-  </div>
+  ${viewSync()}
   ${viewStorage()}
   <div class="card">
     <div class="row" style="justify-content:space-between">
@@ -1160,9 +1297,10 @@ function viewCal(){
       ${bits.length?`<div>${bits.join('<br>')}</div>`:'<div class="note">Sin registro físico este día.</div>'}
       ${eaten.length?`<div style="margin-top:8px">🍽️ ${eaten.map(x=>`<b>${x.n}</b>${mm[x.id].note?' — '+esc(mm[x.id].note):''}`).join('<br>')}</div>`:''}`;
     for(const k of (wmap[f]||[])){
-      const mObj=k.match(/m(\d+)-d(\d+)/), mi=mObj[1], di=mObj[2], w=S.work[k];
-      html+=`<div style="margin-top:10px"><b>🏋️ Microciclo ${mi} · Día ${di} (${DAYS[di].pat})</b>`;
-      for(const ex of DAYS[di].items){
+      const pk=parseKey(k); if(!pk) continue;
+      const w=S.work[k], dd=daysOf(pk.f)[pk.d]; if(!dd) continue;
+      html+=`<div style="margin-top:10px"><b>🏋️ ${sessLabel(pk.f,pk.m,pk.d)}</b>`;
+      for(const ex of dd.items){
         const e=w.ex[ex.id]; if(!e) continue;
         const ss=(e.series||[]).filter(s=>s&&(s.c||s.r));
         if(ss.length) html+=`<div class="note">${esc(ex.n)}: ${ss.map(s=>`${fmtNum(s.c)||'–'}×${s.r||'–'}${s.rir?' R'+s.rir:''}`).join(' · ')} ${e.res==='llegue'?'✅':e.res==='corto'?'⚠️':''}</div>`;
@@ -1182,13 +1320,13 @@ function viewCal(){
     </div>
   </div>`;
   const sessions=Object.entries(S.work)
-    .map(([k,w])=>({k,w,m:parseInt(k.match(/m(\d+)/)[1]),d:parseInt(k.match(/d(\d+)/)[1])}))
-    .filter(s=>Object.values(s.w.ex||{}).some(e=>(e.series||[]).some(x=>x&&(x.c||x.r))))
-    .sort((a,b)=>(b.w.fecha||'').localeCompare(a.w.fecha||'')||b.m-a.m||b.d-a.d);
+    .map(([k,w])=>{ const p=parseKey(k); return p?{k,w,f:p.f,m:p.m,d:p.d}:null; })
+    .filter(s=>s && daysOf(s.f)[s.d] && Object.values(s.w.ex||{}).some(e=>(e.series||[]).some(x=>x&&(x.c||x.r))))
+    .sort((a,b)=>(b.w.fecha||'').localeCompare(a.w.fecha||'')||b.f-a.f||b.m-a.m||b.d-a.d);
   let anyHist=false;
   for(const s of sessions){
     let rows='';
-    for(const ex of DAYS[s.d].items){
+    for(const ex of daysOf(s.f)[s.d].items){
       const e=s.w.ex[ex.id]; if(!e) continue;
       if(histMuscles.length && !histMuscles.some(m=>(MUSCLE[ex.id]||'').includes(m))) continue;
       if(histQ && !ex.n.toLowerCase().includes(histQ)) continue;
@@ -1199,7 +1337,7 @@ function viewCal(){
     }
     if(rows){
       anyHist=true;
-      html+=`<div class="card"><div class="exmeta" style="margin-bottom:6px"><b>Microciclo ${s.m} · Día ${s.d}</b>${s.w.fecha?' · '+s.w.fecha:''}</div>${rows}</div>`;
+      html+=`<div class="card"><div class="exmeta" style="margin-bottom:6px"><b>${sessLabel(s.f,s.m,s.d)}</b>${s.w.fecha?' · '+s.w.fecha:''}</div>${rows}</div>`;
     }
   }
   if(!anyHist) html+='<div class="card"><div class="note">Aún no hay entrenos que coincidan con el filtro.</div></div>';
@@ -1247,16 +1385,16 @@ function expRange(){
   if(e.mode==='dia')   return {from:e.from, to:e.from, lbl:'Día '+e.from};
   if(e.mode==='rango') return {from:e.from, to:e.to,   lbl:e.from+' → '+e.to};
   if(e.mode==='micro'){ const wd=weekDates(S.ui.xlMicro);
-    return {from:wd[0], to:wd[6], micro:S.ui.xlMicro, lbl:'Microciclo '+S.ui.xlMicro}; }
+    return {from:wd[0], to:wd[6], micro:S.ui.xlMicro, fase:curFase(), lbl:(curFase()===2?'Fase 2 · ':'Fase 1 · ')+'Microciclo '+S.ui.xlMicro}; }
   return {from:'0000-01-01', to:'9999-12-31', lbl:'Todo el plan'};
 }
-/* En modo microciclo se filtra por número de sesión; en los demás, por fecha real */
+/* En modo microciclo se filtra por fase + número de sesión; en los demás, por fecha real */
 function sessionsIn(r){
   return Object.entries(S.work)
-    .map(([k,w])=>({k,w,m:+k.match(/m(\d+)/)[1], d:+k.match(/d(\d+)/)[1]}))
-    .filter(s=>sessionHasData(s.w))
-    .filter(s=> r.micro ? s.m===r.micro : (s.w.fecha && s.w.fecha>=r.from && s.w.fecha<=r.to))
-    .sort((a,b)=>(a.w.fecha||'').localeCompare(b.w.fecha||'')||a.m-b.m||a.d-b.d);
+    .map(([k,w])=>{ const p=parseKey(k); return p?{k,w,f:p.f,m:p.m,d:p.d}:null; })
+    .filter(s=>s && daysOf(s.f)[s.d] && sessionHasData(s.w))
+    .filter(s=> r.micro ? (s.f===r.fase && s.m===r.micro) : (s.w.fecha && s.w.fecha>=r.from && s.w.fecha<=r.to))
+    .sort((a,b)=>(a.w.fecha||'').localeCompare(b.w.fecha||'')||a.f-b.f||a.m-b.m||a.d-b.d);
 }
 function daysIn(r){ return Object.keys(S.days).filter(f=>f>=r.from&&f<=r.to).sort(); }
 
@@ -1280,7 +1418,7 @@ function viewExport(){
     ${e.mode==='micro'?`
       <div class="field" style="margin-top:10px"><label>Microciclo</label>
         <select onchange="setXlMicro(this.value)">${Array.from({length:N_MICROS},(_,i)=>`<option value="${i+1}" ${micro===i+1?'selected':''}>Microciclo ${i+1}</option>`).join('')}</select></div>`:''}
-    <div class="note" style="margin-top:10px">Exportando: <b>${esc(r.lbl)}</b>. Los valores salen en el mismo orden que el Excel de LuffyFitnessCoach: por ejercicio, filas de serie con <b>CARGA · Rep. · RIR</b>.</div>
+    <div class="note" style="margin-top:10px">Exportando: <b>${esc(r.lbl)}</b>. Por ejercicio, una fila por serie con <b>CARGA · Rep. · RIR</b>.</div>
     <button class="btn primary" style="margin-top:10px;width:100%" onclick="exportRangeCSV()">⬇️ Descargar CSV de esta selección</button>
   </div>`;
 
@@ -1289,7 +1427,7 @@ function viewExport(){
   if(sess.length){
     for(const s of sess){
       let rows='', copyLines=[];
-      for(const ex of DAYS[s.d].items){
+      for(const ex of daysOf(s.f)[s.d].items){
         const ee=s.w.ex[ex.id]||{series:[]};
         for(let i=0;i<ex.s;i++){
           const x=ee.series[i]||{};
@@ -1299,7 +1437,7 @@ function viewExport(){
         if(ee.res||ee.obs) rows+=`<tr><td class="lbl" colspan="4" style="font-size:11px">${ee.res==='llegue'?'✅ llegué':ee.res==='corto'?'⚠️ corto':''}${ee.obs?' — '+esc(ee.obs):''}</td></tr>`;
       }
       html+=`
-      <h2>🏋️ Microciclo ${s.m} · Día ${s.d} (${DAYS[s.d].pat})${s.w.fecha?` · ${s.w.fecha}`:''}</h2>
+      <h2>🏋️ ${sessLabel(s.f,s.m,s.d)}${s.w.fecha?` · ${s.w.fecha}`:''}</h2>
       <div class="card excel-grid">
         <table class="xl"><tr><th style="text-align:left">Ejercicio</th><th>Carga</th><th>Rep.</th><th>RIR</th></tr>${rows}</table>
         <button class="btn small" style="margin-top:8px" id="cp-${s.k}" data-copy="${esc(copyLines.join('\n'))}" onclick="copyText('cp-${s.k}')">📋 Copiar CARGA·Rep·RIR</button>
@@ -1409,7 +1547,16 @@ function importJSON(inp){
   r.onload=()=>{ try{
     const d=JSON.parse(r.result); if(!d.days&&!d.work) throw 0;
     // COMBINA (no reemplaza): lo importado rellena huecos; lo que ya tienes manda si coincide
-    S.days    =Object.assign({}, d.days||{},     S.days||{});
+    // días: campo a campo; lo que ya tienes manda, pero un campo vacío no pisa un dato importado
+    const lleno=v=>!(v===''||v==null||(typeof v==='object'&&!Object.keys(v).length));
+    const mezcla=(imp,cur)=>{ const m=Object.assign({}, imp||{}); for(const [k,v] of Object.entries(cur||{})) if(lleno(v)) m[k]=v; return m; };
+    const dd=Object.assign({}, S.days||{});
+    for(const [f,v] of Object.entries(d.days||{})){
+      const cur=dd[f]||{}, m=mezcla(v,cur);
+      m.cardio=mezcla(v.cardio,cur.cardio);
+      dd[f]=m;
+    }
+    S.days    =dd;
     S.work    =Object.assign({}, d.work||{},     S.work||{});
     S.meals   =Object.assign({}, d.meals||{},    S.meals||{});
     S.lib     =Object.assign({}, d.lib||{},      S.lib||{});
@@ -1435,8 +1582,7 @@ function exportCSV(){
   }
   for(const [k,w] of Object.entries(S.work)){
     for(const [exId,e] of Object.entries(w.ex||{})){
-      let exName=exId;
-      for(const d of [1,2,3,4]) for(const x of DAYS[d].items) if(x.id===exId) exName=x.n;
+      const exName=(ALL_EX[exId]||{}).n||exId;
       (e.series||[]).forEach((s,i)=>{ if(s&&(s.c||s.r||s.rir))
         lines.push(`entreno;${k};${exName} S${i+1};carga=${s.c||''} reps=${s.r||''} rir=${s.rir||''}`); });
       if(e.obj) lines.push(`entreno;${k};${exName};objetivo="${e.obj}"`);
@@ -1467,9 +1613,9 @@ function buildTodayRows(){
   // sesiones registradas hoy
   for(const [k,w] of Object.entries(S.work)){
     if(w.fecha!==f) continue;
-    const mt=k.match(/m(\d+)-d(\d+)/); if(!mt) continue;
-    const mi=mt[1], di=mt[2];
-    for(const ex of DAYS[di].items){
+    const pk=parseKey(k); if(!pk || !daysOf(pk.f)[pk.d]) continue;
+    const mi=(pk.f===2?'F2-':'')+pk.m, di=pk.d;
+    for(const ex of daysOf(pk.f)[pk.d].items){
       const e=w.ex[ex.id]; if(!e) continue;
       const ss=(e.series||[]);
       const resTxt=e.res==='llegue'?'llegué':e.res==='corto'?'me quedé corto':'';
@@ -1492,11 +1638,11 @@ function exportRangeCSV(){
   const L=['LUFFYT — '+r.lbl, ''];
   const sess=sessionsIn(r);
   if(sess.length){
-    L.push('ENTRENOS'); L.push('fecha;microciclo;dia;ejercicio;serie;carga;reps;rir;resultado;observaciones');
-    for(const s of sess) for(const ex of DAYS[s.d].items){
+    L.push('ENTRENOS'); L.push('fecha;fase;microciclo;dia;ejercicio;serie;carga;reps;rir;resultado;observaciones');
+    for(const s of sess) for(const ex of daysOf(s.f)[s.d].items){
       const e=s.w.ex[ex.id]; if(!e) continue;
       (e.series||[]).forEach((x,i)=>{ if(x&&(x.c||x.r||x.rir))
-        L.push([s.w.fecha||'',s.m,s.d,ex.n,'S'+(i+1),fmtNum(x.c),x.r||'',x.rir||'',
+        L.push([s.w.fecha||'',s.f,s.m,s.d,ex.n,'S'+(i+1),fmtNum(x.c),x.r||'',x.rir||'',
                 e.res==='llegue'?'llegue':e.res==='corto'?'corto':'',
                 (e.obs||'').replace(/;/g,',')].join(';')); });
     }
@@ -1533,6 +1679,123 @@ function exportRangeCSV(){
   const slug=r.lbl.replace(/[^\wáéíóúñ]+/gi,'-').toLowerCase();
   download('luffyt-'+slug+'.csv', L.join('\n'), 'text/csv');
   toast('CSV descargado 📄');
+}
+
+/* ================= SINCRONIZACIÓN CON TU HOJA DE GOOGLE =================
+   Cada vez que abres la app (con internet) sube a tu hoja lo que aún no estaba subido,
+   o lo que cambiaste desde la última vez. El enlace y la clave se guardan SOLO en este
+   móvil (fuera de los datos y de las copias JSON), nunca en la app publicada. */
+const SYNC_CFG_KEY='luffyt-sync', SYNC_STATE_KEY='luffyt-sync-state';
+function syncCfg(){ try{ return JSON.parse(localStorage.getItem(SYNC_CFG_KEY))||{}; }catch(e){ return {}; } }
+function syncState(){ try{ const s=JSON.parse(localStorage.getItem(SYNC_STATE_KEY))||{}; s.h=s.h||{}; return s; }catch(e){ return {h:{}}; } }
+function saveSyncState(st){ try{ localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(st)); }catch(e){} }
+function setSyncCfg(field,v){ const c=syncCfg(); c[field]=String(v||'').trim(); try{ localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(c)); }catch(e){} render(); if(c.url&&c.key) syncNow(true); }
+function hashStr(s){ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36); }
+function numOr(v){ if(v===''||v==null) return ''; const n=Number(String(v).replace(',','.')); return isNaN(n)?String(v):n; }
+
+/* Filas por pestaña (la primera columna es la clave única de cada fila) */
+function syncRows(){
+  const registro=[], dias=[], comidas=[];
+  for(const [k,w] of Object.entries(S.work)){
+    const p=parseKey(k); if(!p) continue;
+    const day=daysOf(p.f)[p.d];
+    for(const [exId,e] of Object.entries(w.ex||{})){
+      const nombre=(ALL_EX[exId]||{}).n||exId;
+      const res=e.res==='llegue'?'llegué':e.res==='corto'?'me quedé corto':'';
+      let primera=true;
+      (e.series||[]).forEach((s,i)=>{ if(s&&(s.c||s.r||s.rir)){
+        registro.push([k+'|'+exId+'|S'+(i+1), w.fecha||'', p.f, p.m, p.d, day?day.pat:'', nombre, 'S'+(i+1),
+                       numOr(s.c), numOr(s.r), numOr(s.rir), primera?res:'', primera?(e.obs||''):'']);
+        primera=false;
+      }});
+      if(primera && (e.res||e.obs))
+        registro.push([k+'|'+exId+'|-', w.fecha||'', p.f, p.m, p.d, day?day.pat:'', nombre, '', '', '', '', res, e.obs||'']);
+    }
+  }
+  for(const [f,d] of Object.entries(S.days)){
+    const c=d.cardio||{};
+    const caf=d.caf?CAFES.reduce((a,x)=>a+(d.caf[x.id]||0)*x.mg,0)+(parseInt(d.caf.otros)||0):0;
+    const hayCardio=!!(c.tiempo||c.vel||c.incl||c.kcal);
+    if(!(d.peso||d.pasos||hayCardio||caf||d.notas)) continue;
+    dias.push([f, f, numOr(d.peso), numOr(d.pasos), hayCardio?(c.maquina||'Cinta'):'', numOr(c.tiempo), numOr(c.vel),
+               numOr(c.incl), numOr(c.kcal), caf||'', d.notas||'']);
+  }
+  for(const [f,mm] of Object.entries(S.meals)){
+    for(const x of allMeals()){
+      const st=mm[x.id]; if(!st||(!st.done&&!st.note)) continue;
+      comidas.push([f+'|'+x.id, f, x.n.replace(/^[^\p{L}]+/u,''), st.done?'sí':'no', st.note||'']);
+    }
+  }
+  return {registro, dias, comidas};
+}
+function syncPendientes(){
+  const st=syncState(), all=syncRows(); let n=0;
+  for(const t in all) for(const r of all[t]) if(st.h[t+'|'+r[0]]!==hashStr(JSON.stringify(r))) n++;
+  return n;
+}
+let syncEnCurso=false, syncUltimoIntento=0;
+async function syncNow(manual){
+  const cfg=syncCfg();
+  if(!cfg.url||!cfg.key){ if(manual) toast('Pon primero el enlace y la clave'); return; }
+  if(syncEnCurso) return;
+  if(!navigator.onLine){ if(manual) toast('Sin conexión: se subirá cuando tengas internet'); return; }
+  if(!manual && Date.now()-syncUltimoIntento<60000) return;     // como mucho una vez por minuto
+  syncUltimoIntento=Date.now();
+  const st=syncState(), all=syncRows(), payload={clave:cfg.key}, nuevos={};
+  let n=0;
+  for(const t in all){
+    payload[t]=all[t].filter(r=>{ const hk=t+'|'+r[0], hv=hashStr(JSON.stringify(r));
+      if(st.h[hk]===hv) return false; nuevos[hk]=hv; return true; });
+    n+=payload[t].length;
+  }
+  if(!n){ st.last=Date.now(); st.err=null; saveSyncState(st); if(manual){ toast('Ya estaba todo subido ✅'); render(); } return; }
+  syncEnCurso=true;
+  try{
+    // sin cabeceras propias: así el navegador no hace consulta previa (CORS) y Apps Script lo acepta
+    const resp=await fetch(cfg.url,{method:'POST', body:JSON.stringify(payload)});
+    const j=await resp.json();
+    if(!j.ok) throw new Error(j.error||'respuesta no válida');
+    Object.assign(st.h, nuevos); st.last=Date.now(); st.err=null; st.lastN=n;
+    saveSyncState(st);
+    toast('☁️ '+n+(n===1?' dato subido':' datos subidos')+' a tu Drive');
+  }catch(e){
+    st.err=String((e&&e.message)||e); saveSyncState(st);
+    if(manual) toast('No se pudo subir: '+st.err);
+  }finally{
+    syncEnCurso=false;
+    if(S.ui.tab==='cal') render();
+  }
+}
+window.addEventListener('load', ()=> setTimeout(()=>syncNow(false), 2500));
+window.addEventListener('online', ()=> syncNow(false));
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') syncNow(false); });
+
+function viewSync(){
+  const cfg=syncCfg(), st=syncState(), conf=!!(cfg.url&&cfg.key);
+  const pend=conf?syncPendientes():0;
+  const ult=st.last?new Date(st.last).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'nunca';
+  const campos=`
+    <div class="field" style="margin-top:8px"><label>Enlace de sincronización</label>
+      <input type="text" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(cfg.url||'')}" onchange="setSyncCfg('url',this.value)"></div>
+    <div class="field" style="margin-top:8px"><label>Clave</label>
+      <input type="text" placeholder="La clave que te di" value="${esc(cfg.key||'')}" onchange="setSyncCfg('key',this.value)"></div>`;
+  return `
+  <h2>☁️ Tu hoja de Google</h2>
+  <div class="card">
+    ${conf?`
+      <div class="row" style="justify-content:space-between;align-items:baseline">
+        <b>${pend===0?'✅ Todo subido':'⏳ '+pend+(pend===1?' dato pendiente':' datos pendientes')}</b>
+        <span class="note">Última subida: ${ult}</span>
+      </div>
+      ${st.err?`<div class="note" style="color:var(--bad);margin-top:4px">No se pudo subir la última vez: ${esc(st.err)}</div>`:''}
+      <button class="btn primary" style="width:100%;margin-top:10px" onclick="syncNow(true)">☁️ Subir ahora</button>
+      <div class="note" style="margin-top:8px">Se sube sola cada vez que abres la app con internet.</div>
+      <a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="${MI_EXCEL_URL}" target="_blank" rel="noopener">📗 Abrir mi hoja</a>
+      <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Cambiar enlace o clave</summary>${campos}</details>`
+    :`<div class="note">Conecta la app con tu hoja de Google para que tus datos se suban solos cada vez que abras la app.</div>
+      ${campos}
+      <a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:10px" href="${MI_EXCEL_URL}" target="_blank" rel="noopener">📗 Abrir mi hoja</a>`}
+  </div>`;
 }
 
 render();
