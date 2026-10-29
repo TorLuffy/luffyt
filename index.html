@@ -148,6 +148,16 @@ table.xl td.lbl{text-align:left; color:var(--muted); font-size:12px}
 .alertbar b{color:inherit}
 .exchange{background:var(--bad-soft); color:var(--bad); border:1px solid var(--bad); border-radius:10px; padding:9px 11px; margin-top:8px; font-size:13px; line-height:1.4}
 .exchange b{color:inherit}
+.medgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-top:10px}
+.medgrid .field{min-width:0; display:flex; flex-direction:column; justify-content:flex-end}
+.medgrid label{font-size:11.5px}
+.medtable{overflow-x:auto}
+.medtable table{border-collapse:collapse; width:100%; font-size:12.5px}
+.medtable th,.medtable td{padding:5px 6px; text-align:right; white-space:nowrap; border-top:1px solid var(--line)}
+.medtable th:first-child,.medtable td:first-child{text-align:left; white-space:normal}
+.medtable th a{color:var(--accent-ink); text-decoration:none}
+.mup,.mdown{font-size:11px; font-weight:600; text-transform:none; letter-spacing:0}
+.mup{color:var(--accent-ink)} .mdown{color:var(--good)}
 .autowhy{margin-top:6px; font-size:12.5px; line-height:1.4; padding:7px 10px; border-radius:10px; background:var(--accent-soft); color:var(--accent-ink)}
 .autowhy.cuidado,.autowhy.baja{background:var(--bad-soft); color:var(--bad)}
 .autowhy.sube{background:var(--good-soft); color:var(--good)}
@@ -718,6 +728,8 @@ S.meals   = S.meals   || {};   // fecha -> {c1:{done,note},...}
 S.lib     = S.lib     || {};   // nombre-ejercicio -> [{url,nota,fecha}]
 S.vidNotes= S.vidNotes|| {};   // url del vídeo -> nota personal
 S.ui      = S.ui      || {tab:'hoy', micro:1, dia:1, xlMicro:1, fecha:todayStr()};
+S.medidas = S.medidas || {};   // fecha -> {hombro,pecho,…,nota} (contornos en cm)
+S.medCfg  = S.medCfg  || {cada:30};   // cada cuántos días toca medirse
 function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
 
 /* ---- Almacenamiento del dispositivo ---- */
@@ -836,7 +848,7 @@ function render(){
   else if(S.ui.tab==='comidas') body=viewComidas();
   else if(S.ui.tab==='videos') body=viewVideos();
   else body=viewCal();
-  m.innerHTML = storageBanner() + body;
+  m.innerHTML = storageBanner() + medidasBanner() + body;
 }
 
 /* ================= HOY: peso · pasos · cardio ================= */
@@ -1423,7 +1435,131 @@ function workoutsByDate(){
   return map;
 }
 
+/* ================= MEDIDAS CORPORALES (pestaña dentro del Diario) =================
+   Los mismos contornos que pedía el plan, en cm. Aviso cuando toca volver a medirse. */
+const MEDIDAS = [
+  ['hombro','Hombro'], ['pecho','Pecho'], ['bicI','Bíceps izq'], ['bicD','Bíceps der'],
+  ['sobre','5 cm sobre el ombligo'], ['cintura','Cintura (por el ombligo)'], ['bajo','5 cm bajo el ombligo'],
+  ['cadera','Cadera (mitad glúteo)'], ['cuaI','Cuádriceps izq'], ['cuaD','Cuádriceps der'],
+  ['gemI','Gemelo izq'], ['gemD','Gemelo der'], ['cuello','Cuello']
+];
+const MED_VIDEO = 'https://youtube.com/shorts/oaxndEFWUdg';
+function medTiene(m){ return !!m && MEDIDAS.some(([k])=>m[k]!==''&&m[k]!=null); }
+function medFechas(){ return Object.keys(S.medidas).filter(f=>medTiene(S.medidas[f])).sort(); }
+function diasEntre(a,b){ return Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/86400000); }
+function sumarDias(f,n){ const d=new Date(f+'T12:00'); d.setDate(d.getDate()+n);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtFecha(f){ const [y,m,d]=f.split('-'); return `${d}/${m}/${y.slice(2)}`; }
+function medProxima(){ const fs=medFechas(); return fs.length ? sumarDias(fs[fs.length-1], S.medCfg.cada||30) : todayStr(); }
+function medToca(){ return medProxima()<=todayStr(); }
+
+/* Aviso en todas las pestañas cuando toca medirse (se puede posponer a mañana) */
+function medidasBanner(){
+  if(!medToca() || (S.ui.medSnooze && S.ui.medSnooze>=todayStr())) return '';
+  if(S.ui.tab==='cal' && S.ui.calTab==='medidas') return '';
+  const fs=medFechas(), ult=fs[fs.length-1];
+  return `<div class="alertbar warn">
+    📏 <b>Toca medirte.</b> ${ult?`Han pasado ${diasEntre(ult,todayStr())} días desde la última medición (${fmtFecha(ult)}).`:'Aún no tienes ninguna medición en la app.'}
+    En ayunas, por la mañana y antes de entrenar.
+    <div class="row" style="margin-top:6px">
+      <button class="btn small primary" onclick="medNueva()">📏 Medirme ahora</button>
+      <button class="btn small" onclick="S.ui.medSnooze=todayStr();save();render()">Mañana</button>
+    </div>
+  </div>`;
+}
+function medNueva(){
+  const f=todayStr(); S.medidas[f]=S.medidas[f]||{};
+  S.ui.tab='cal'; S.ui.calTab='medidas'; S.ui.medFecha=f; S.ui.medDel=false; save(); render(); window.scrollTo(0,0);
+}
+function medAbrir(f){ S.ui.medFecha=(S.ui.medFecha===f?null:f); S.ui.medDel=false; save(); render(); }
+function medSet(k,v){ const f=S.ui.medFecha; if(!f) return; const m=S.medidas[f]=S.medidas[f]||{};
+  m[k]= k==='nota' ? String(v) : String(v).trim().replace(',','.'); save(); render(); }
+function medPeso(v){ const f=S.ui.medFecha; if(!f) return; S.days[f]=S.days[f]||{}; S.days[f].peso=String(v).trim().replace(',','.'); save(); render(); }
+function medFechaCambiar(nf){
+  const f=S.ui.medFecha; if(!f||!nf||nf===f) return;
+  if(medTiene(S.medidas[nf])){ toast('Ya hay una medición ese día'); render(); return; }
+  S.medidas[nf]=S.medidas[f]; delete S.medidas[f]; S.ui.medFecha=nf; save(); render();
+}
+function medBorrar(){
+  if(!S.ui.medDel){ S.ui.medDel=true; render(); return; }
+  delete S.medidas[S.ui.medFecha]; S.ui.medFecha=null; S.ui.medDel=false; save(); render(); toast('Medición borrada');
+}
+function medDelta(a,b){
+  const x=parseFloat(a), y=parseFloat(b); if(isNaN(x)||isNaN(y)) return '';
+  const d=Math.round((x-y)*10)/10; if(!d) return '<span class="note">=</span>';
+  return `<span class="${d>0?'mup':'mdown'}">${d>0?'+':''}${fmtKg(d)}</span>`;
+}
+function viewMedidas(){
+  const fs=medFechas(), f=S.ui.medFecha, prox=medProxima();
+  let html=`
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:baseline">
+      <b>${fs.length?`Última: ${fmtFecha(fs[fs.length-1])}`:'Sin mediciones todavía'}</b>
+      <span class="note">${medToca()?'⏰ Toca medirte':'Próxima: '+fmtFecha(prox)}</span>
+    </div>
+    <div class="row" style="margin-top:10px;align-items:center">
+      <button class="btn primary" onclick="medNueva()">➕ Nueva medición</button>
+      <label class="note" style="display:flex;align-items:center;gap:6px">Avisarme
+        <select onchange="S.medCfg.cada=+this.value;save();render()">
+          ${[[14,'cada 2 semanas'],[28,'cada 4 semanas'],[30,'cada mes']].map(([v,t])=>`<option value="${v}" ${S.medCfg.cada===v?'selected':''}>${t}</option>`).join('')}
+        </select></label>
+    </div>
+    <details style="margin-top:10px"><summary class="note" style="cursor:pointer">📋 Cómo medirte</summary>
+      <div class="note" style="margin-top:6px;line-height:1.5">En ayunas, por la mañana, antes de entrenar y relajado (sin apretar el músculo).
+        Cinta métrica pegada a la piel sin apretar, siempre en el mismo punto. Lados izquierdo y derecho por separado.
+        Haz también las fotos de revisión: frontal, lateral y de espaldas, con la misma luz.
+        <br><a href="${MED_VIDEO}" target="_blank" rel="noopener">🎬 Vídeo: cómo tomar las medidas</a></div>
+    </details>
+  </div>`;
+
+  if(f){
+    const m=S.medidas[f]||{}, ant=fs.filter(x=>x<f).pop(), pm=ant?S.medidas[ant]:null;
+    const peso=(S.days[f]||{}).peso||'';
+    html+=`<h2>📏 Medición del ${fmtFecha(f)}</h2>
+    <div class="card">
+      <div class="row">
+        <div class="field"><label>Fecha</label><input type="date" value="${f}" onchange="medFechaCambiar(this.value)"></div>
+        <div class="field"><label>⚖️ Peso (kg)</label><input type="number" step="0.05" inputmode="decimal" value="${esc(peso)}" onfocus="this.select()" onchange="medPeso(this.value)"></div>
+      </div>
+      <div class="medgrid">
+        ${MEDIDAS.map(([k,l])=>`<div class="field"><label>${l}${pm&&m[k]?' '+medDelta(m[k],pm[k]):''}</label>
+          <input type="number" step="0.1" inputmode="decimal" placeholder="${pm&&pm[k]?fmtKg(+pm[k]):'cm'}" value="${esc(m[k]??'')}" onfocus="this.select()" onchange="medSet('${k}',this.value)"></div>`).join('')}
+      </div>
+      <div class="field" style="margin-top:8px"><label>Notas</label>
+        <textarea placeholder="Cómo te ves, cambios, fotos hechas…" onchange="medSet('nota',this.value)">${esc(m.nota??'')}</textarea></div>
+      <div class="note" style="margin-top:6px">${pm?`Las cifras pequeñas comparan con la medición anterior (${fmtFecha(ant)}).`:'Esta es tu primera medición: las siguientes se compararán con ella.'}</div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" onclick="medAbrir('${f}')">✔️ Listo</button>
+        <button class="btn" onclick="medBorrar()">🗑️ ${S.ui.medDel?'Confirmar borrado':'Borrar'}</button>
+      </div>
+    </div>`;
+  }
+
+  if(fs.length){
+    const cols=fs.slice(-4), first=fs[0], last=fs[fs.length-1];
+    html+=`<h2>📈 Evolución</h2>
+    <div class="card">
+      <div class="medtable"><table>
+        <tr><th></th>${cols.map(x=>`<th><a href="#" onclick="medAbrir('${x}');return false">${fmtFecha(x)}</a></th>`).join('')}${fs.length>1?'<th>Total</th>':''}</tr>
+        <tr><td>Peso</td>${cols.map(x=>`<td>${(S.days[x]||{}).peso?fmtKg(+S.days[x].peso):'–'}</td>`).join('')}${fs.length>1?`<td>${medDelta((S.days[last]||{}).peso,(S.days[first]||{}).peso)}</td>`:''}</tr>
+        ${MEDIDAS.map(([k,l])=>`<tr><td>${l}</td>${cols.map(x=>`<td>${S.medidas[x][k]?fmtKg(+S.medidas[x][k]):'–'}</td>`).join('')}${fs.length>1?`<td>${medDelta(S.medidas[last][k],S.medidas[first][k])}</td>`:''}</tr>`).join('')}
+      </table></div>
+      <div class="note" style="margin-top:6px">${fs.length>4?`Se ven las 4 últimas de ${fs.length}. `:''}Total = cambio desde la primera medición (${fmtFecha(first)}). Toca una fecha para verla o corregirla.</div>
+    </div>`;
+  }
+  return html;
+}
+
 function viewCal(){
+  const sub=S.ui.calTab==='medidas'?'medidas':'cal';
+  const tabsDiario=`<div class="filterchips" style="margin-top:0;margin-bottom:12px">
+      <span class="chip ${sub==='cal'?'on-good':''}" onclick="S.ui.calTab='cal';save();render()">📆 Calendario</span>
+      <span class="chip ${sub==='medidas'?'on-good':''}" onclick="S.ui.calTab='medidas';save();render()">📏 Medidas${medToca()?' ⏰':''}</span>
+    </div>`;
+  if(sub==='medidas') return tabsDiario + viewMedidas();
+  return tabsDiario + viewCalendario();
+}
+function viewCalendario(){
   const ym=calYM(), [Y,M]=ym.split('-').map(Number);
   const first=new Date(Y,M-1,1), startDow=(first.getDay()+6)%7, ndays=new Date(Y,M,0).getDate();
   const wmap=workoutsByDate(), today=todayStr();
@@ -1713,7 +1849,8 @@ function importJSON(inp){
   const f=inp.files[0]; if(!f) return;
   const r=new FileReader();
   r.onload=()=>{ try{
-    const d=JSON.parse(r.result); if(!d.days&&!d.work) throw 0;
+    const d=JSON.parse(r.result); if(!d.days&&!d.work&&!d.medidas) throw 0;
+    for(const [f,m] of Object.entries(d.medidas||{})) if(!medTiene(S.medidas[f])) S.medidas[f]=m;
     // COMBINA (no reemplaza): lo importado rellena huecos; lo que ya tienes manda si coincide
     // días: campo a campo; lo que ya tienes manda, pero un campo vacío no pisa un dato importado
     const lleno=v=>!(v===''||v==null||(typeof v==='object'&&!Object.keys(v).length));
@@ -1895,8 +2032,14 @@ function syncRows(){
       comidas.push([f+'|'+x.id, f, x.n.replace(/^[^\p{L}]+/u,''), st.done?'sí':'no', st.note||'']);
     }
   }
-  return {registro, dias, comidas};
+  const medidas=[];
+  for(const f of medFechas()){
+    const m=S.medidas[f];
+    medidas.push([f, f, ...MEDIDAS.map(([k])=>numOr(m[k])), numOr((S.days[f]||{}).peso), m.nota||'']);
+  }
+  return {registro, dias, comidas, medidas};
 }
+const TABLAS_BASICAS=['registro','dias','comidas'];   // las que entiende cualquier versión del script
 function syncPendientes(){
   const st=syncState(), all=syncRows(); let n=0;
   for(const t in all) for(const r of all[t]) if(st.h[t+'|'+r[0]]!==hashStr(JSON.stringify(r))) n++;
@@ -1924,9 +2067,14 @@ async function syncNow(manual){
     const resp=await fetch(cfg.url,{method:'POST', body:JSON.stringify(payload)});
     const j=await resp.json();
     if(!j.ok) throw new Error(j.error||'respuesta no válida');
-    Object.assign(st.h, nuevos); st.last=Date.now(); st.err=null; st.lastN=n;
+    // un script antiguo no guarda las tablas nuevas (medidas): esas se quedan pendientes
+    const aceptadas=j.tablas||TABLAS_BASICAS;
+    let ok=0;
+    for(const [hk,hv] of Object.entries(nuevos)){ if(aceptadas.includes(hk.split('|')[0])){ st.h[hk]=hv; ok++; } }
+    st.scriptViejo = ok<n;
+    st.last=Date.now(); st.err=null; st.lastN=ok;
     saveSyncState(st);
-    toast('☁️ '+n+(n===1?' dato subido':' datos subidos')+' a tu Drive');
+    if(ok) toast('☁️ '+ok+(ok===1?' dato subido':' datos subidos')+' a tu Drive');
   }catch(e){
     st.err=String((e&&e.message)||e); saveSyncState(st);
     if(manual) toast('No se pudo subir: '+st.err);
@@ -1973,6 +2121,13 @@ async function restoreFromSheet(){
     const mm=S.meals[f]=S.meals[f]||{};
     if(mm[id]&&(mm[id].done||mm[id].note)) continue;
     mm[id]={done:hecho==='sí', note:str(nota), doneManual:true, manual:true};
+  }
+  for(const r of j.medidas||[]){
+    const f=String(r[0]); if(!/^\d{4}-\d{2}-\d{2}$/.test(f) || medTiene(S.medidas[f])) continue;
+    const m={}; MEDIDAS.forEach(([k],i)=>{ m[k]=str(r[2+i]); });
+    m.nota=str(r[2+MEDIDAS.length+1]);
+    S.medidas[f]=m;
+    const p=r[2+MEDIDAS.length]; if(p!==''&&p!=null){ const d=S.days[f]=S.days[f]||{}; put(d,'peso',p); }
   }
   const cs=currentSession(); if(cs){ S.ui.micro=cs.micro; S.ui.dia=cs.dia; S.ui.xlMicro=cs.micro; }
   save(); render();
@@ -2021,6 +2176,7 @@ function viewSync(){
         <span class="note">Última subida: ${ult}</span>
       </div>
       ${st.err?`<div class="note" style="color:var(--bad);margin-top:4px">No se pudo subir la última vez: ${esc(st.err)}</div>`:''}
+      ${st.scriptViejo&&pend?`<div class="note" style="color:var(--bad);margin-top:4px">Las medidas no se suben todavía: hay que actualizar el script de tu hoja a la versión nueva.</div>`:''}
       <button class="btn primary" style="width:100%;margin-top:10px" onclick="syncNow(true)">☁️ Subir ahora</button>
       <div class="note" style="margin-top:8px">Se sube sola cada vez que abres la app con internet.</div>
       <a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="${MI_EXCEL_URL}" target="_blank" rel="noopener">📗 Abrir mi hoja</a>
