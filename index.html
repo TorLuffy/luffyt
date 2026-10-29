@@ -729,7 +729,6 @@ S.lib     = S.lib     || {};   // nombre-ejercicio -> [{url,nota,fecha}]
 S.vidNotes= S.vidNotes|| {};   // url del vídeo -> nota personal
 S.ui      = S.ui      || {tab:'hoy', micro:1, dia:1, xlMicro:1, fecha:todayStr()};
 S.medidas = S.medidas || {};   // fecha -> {hombro,pecho,…,nota} (contornos en cm)
-S.medCfg  = S.medCfg  || {cada:30};   // cada cuántos días toca medirse
 function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
 
 /* ---- Almacenamiento del dispositivo ---- */
@@ -1450,7 +1449,17 @@ function diasEntre(a,b){ return Math.round((new Date(b+'T12:00')-new Date(a+'T12
 function sumarDias(f,n){ const d=new Date(f+'T12:00'); d.setDate(d.getDate()+n);
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function fmtFecha(f){ const [y,m,d]=f.split('-'); return `${d}/${m}/${y.slice(2)}`; }
-function medProxima(){ const fs=medFechas(); return fs.length ? sumarDias(fs[fs.length-1], S.medCfg.cada||30) : todayStr(); }
+/* Se mide el día 1 de cada mes (desde el 1/11/2026). El aviso sale el día 1 y sigue hasta que te midas.
+   No es estricto: una medición hecha en la semana anterior al día 1 también cuenta para ese mes. */
+const MED_INICIO = '2026-11-01';
+function medDia1(f){ return f.slice(0,8)+'01'; }
+function medDia1Sig(f){ const [y,m]=f.split('-').map(Number); return m===12 ? `${y+1}-01-01` : `${y}-${String(m+1).padStart(2,'0')}-01`; }
+function medProxima(){
+  const hoy=todayStr();
+  if(hoy<MED_INICIO) return MED_INICIO;
+  const ini=medDia1(hoy), hecha=medFechas().some(f=>f>=sumarDias(ini,-7));
+  return hecha ? medDia1Sig(hoy) : ini;
+}
 function medToca(){ return medProxima()<=todayStr(); }
 
 /* Aviso en todas las pestañas cuando toca medirse (se puede posponer a mañana) */
@@ -1459,7 +1468,7 @@ function medidasBanner(){
   if(S.ui.tab==='cal' && S.ui.calTab==='medidas') return '';
   const fs=medFechas(), ult=fs[fs.length-1];
   return `<div class="alertbar warn">
-    📏 <b>Toca medirte.</b> ${ult?`Han pasado ${diasEntre(ult,todayStr())} días desde la última medición (${fmtFecha(ult)}).`:'Aún no tienes ninguna medición en la app.'}
+    📏 <b>Toca la medición de este mes.</b> ${ult?`La última fue el ${fmtFecha(ult)}.`:'Aún no tienes ninguna medición en la app.'}
     En ayunas, por la mañana y antes de entrenar.
     <div class="row" style="margin-top:6px">
       <button class="btn small primary" onclick="medNueva()">📏 Medirme ahora</button>
@@ -1499,10 +1508,7 @@ function viewMedidas(){
     </div>
     <div class="row" style="margin-top:10px;align-items:center">
       <button class="btn primary" onclick="medNueva()">➕ Nueva medición</button>
-      <label class="note" style="display:flex;align-items:center;gap:6px">Avisarme
-        <select onchange="S.medCfg.cada=+this.value;save();render()">
-          ${[[14,'cada 2 semanas'],[28,'cada 4 semanas'],[30,'cada mes']].map(([v,t])=>`<option value="${v}" ${S.medCfg.cada===v?'selected':''}>${t}</option>`).join('')}
-        </select></label>
+      <span class="note">Aviso: el día 1 de cada mes, hasta que te midas.</span>
     </div>
     <details style="margin-top:10px"><summary class="note" style="cursor:pointer">📋 Cómo medirte</summary>
       <div class="note" style="margin-top:6px;line-height:1.5">En ayunas, por la mañana, antes de entrenar y relajado (sin apretar el músculo).
