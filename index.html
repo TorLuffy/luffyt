@@ -2061,6 +2061,9 @@ async function syncNow(manual){
   if(!navigator.onLine){ if(manual) toast('Sin conexión: se subirá cuando tengas internet'); return; }
   if(!manual && Date.now()-syncUltimoIntento<60000) return;     // como mucho una vez por minuto
   syncUltimoIntento=Date.now();
+  syncEnCurso=true;
+  try{ await traerPasos(cfg); }catch(e){}                       // primero, los pasos automáticos del reloj/móvil
+  syncEnCurso=false;
   const st=syncState(), all=syncRows(), payload={clave:cfg.key}, nuevos={};
   let n=0;
   for(const t in all){
@@ -2090,6 +2093,23 @@ async function syncNow(manual){
     syncEnCurso=false;
     if(S.ui.tab==='cal') render();
   }
+}
+/* Pasos automáticos: Health Connect → app HC Webhook → tu hoja → aquí.
+   Se traen los últimos 10 días; si la hoja tiene más pasos que la app ese día, se queda el de la hoja. */
+async function traerPasos(cfg){
+  const desde=sumarDias(todayStr(),-10);
+  const u=cfg.url+(cfg.url.includes('?')?'&':'?')+'leer=1&tablas=dias&desde='+desde+'&clave='+encodeURIComponent(cfg.key);
+  const j=await fetch(u).then(r=>r.json());
+  if(!j.ok) return 0;
+  let n=0;
+  for(const r of j.dias||[]){
+    const f=String(r[0]), p=Number(r[3]);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(f) || f<desde || !(p>0)) continue;
+    const d=S.days[f]=S.days[f]||{};
+    if(!(Number(d.pasos)>=p)){ d.pasos=String(p); n++; }
+  }
+  if(n){ save(); const a=document.activeElement; if(!a || !/INPUT|TEXTAREA|SELECT/.test(a.tagName)) render(); }
+  return n;
 }
 /* Recupera de la hoja lo que no tengas en el móvil (historial, móvil nuevo…).
    Lo que ya tienes manda: las sesiones que ya existen no se tocan y los días se combinan campo a campo. */
