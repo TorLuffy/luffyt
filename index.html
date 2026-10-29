@@ -1855,7 +1855,8 @@ const SYNC_CFG_KEY='luffyt-sync', SYNC_STATE_KEY='luffyt-sync-state';
 function syncCfg(){ try{ return JSON.parse(localStorage.getItem(SYNC_CFG_KEY))||{}; }catch(e){ return {}; } }
 function syncState(){ try{ const s=JSON.parse(localStorage.getItem(SYNC_STATE_KEY))||{}; s.h=s.h||{}; return s; }catch(e){ return {h:{}}; } }
 function saveSyncState(st){ try{ localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(st)); }catch(e){} }
-function setSyncCfg(field,v){ const c=syncCfg(); c[field]=String(v||'').trim(); try{ localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(c)); }catch(e){} render(); if(c.url&&c.key) syncNow(true); }
+function setSyncCfg(field,v){ const c=syncCfg(); c[field]=String(v||'').trim(); try{ localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(c)); }catch(e){} render();
+  if(c.url&&c.key) restoreFromSheet().catch(()=>{}).then(()=>syncNow(true)); }
 function hashStr(s){ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))|0; return (h>>>0).toString(36); }
 function numOr(v){ if(v===''||v==null) return ''; const n=Number(String(v).replace(',','.')); return isNaN(n)?String(v):n; }
 
@@ -1932,7 +1933,71 @@ async function syncNow(manual){
     if(S.ui.tab==='cal') render();
   }
 }
-window.addEventListener('load', ()=> setTimeout(()=>syncNow(false), 2500));
+/* Recupera de la hoja lo que no tengas en el móvil (historial, móvil nuevo…).
+   Lo que ya tienes manda: las sesiones que ya existen no se tocan y los días se combinan campo a campo. */
+async function restoreFromSheet(){
+  const cfg=syncCfg(); if(!cfg.url||!cfg.key) throw new Error('falta enlace o clave');
+  const u=cfg.url+(cfg.url.includes('?')?'&':'?')+'leer=1&clave='+encodeURIComponent(cfg.key);
+  const j=await fetch(u).then(r=>r.json());
+  if(!j.ok) throw new Error(j.error||'respuesta no válida');
+  const str=v=>v==null?'':String(v);
+  const nuevas={};
+  for(const r of j.registro||[]){
+    const [clave,fecha,,,,,,,c,rp,rir,res,obs]=r;
+    const [k,exId,sn]=String(clave).split('|');
+    if(!parseKey(k)||!exId||sessionHasData(S.work[k])) continue;
+    const w=nuevas[k]=nuevas[k]||{fecha:str(fecha), ex:{}};
+    const e=w.ex[exId]=w.ex[exId]||{series:[]};
+    const i=/^S\d+$/.test(sn||'')?parseInt(sn.slice(1))-1:-1;
+    if(i>=0) e.series[i]={c:str(c).replace(',','.'), r:str(rp), rir:str(rir)};
+    if(res) e.res = res==='llegué'?'llegue':res==='me quedé corto'?'corto':'';
+    if(obs) e.obs=str(obs);
+  }
+  for(const w of Object.values(nuevas)) for(const e of Object.values(w.ex)) e.series=Array.from(e.series, s=>s||{c:'',r:'',rir:''});
+  Object.assign(S.work, nuevas);
+  const put=(o,k,v)=>{ if((o[k]==null||o[k]==='') && v!==''&&v!=null) o[k]=str(v); };
+  for(const r of j.dias||[]){
+    const [f,,peso,pasos,maq,t,vel,incl,kcal,caf,notas]=r;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(f))) continue;
+    const d=S.days[f]=S.days[f]||{};
+    put(d,'peso',peso); put(d,'pasos',pasos); put(d,'notas',notas);
+    if([t,vel,incl,kcal].some(v=>v!==''&&v!=null)){ const c=d.cardio=d.cardio||{};
+      put(c,'maquina',maq); put(c,'tiempo',t); put(c,'vel',vel); put(c,'incl',incl); put(c,'kcal',kcal); }
+    if(caf && !d.caf) d.caf={otros:str(caf)};
+  }
+  for(const r of j.comidas||[]){
+    const [clave,f,,hecho,nota]=r, id=String(clave).split('|')[1];
+    if(!id||!f) continue;
+    const mm=S.meals[f]=S.meals[f]||{};
+    if(mm[id]&&(mm[id].done||mm[id].note)) continue;
+    mm[id]={done:hecho==='sí', note:str(nota), doneManual:true, manual:true};
+  }
+  const cs=currentSession(); if(cs){ S.ui.micro=cs.micro; S.ui.dia=cs.dia; S.ui.xlMicro=cs.micro; }
+  save(); render();
+  return Object.keys(nuevas).length;
+}
+async function recuperarHoja(){
+  try{ const n=await restoreFromSheet(); toast(n?`⬇️ ${n} sesiones recuperadas de tu hoja`:'Ya tenías todo lo de la hoja ✅'); }
+  catch(e){ toast('No se pudo leer la hoja: '+((e&&e.message)||e)); }
+}
+/* Enlace de conexión: …/#u=<enlace>&k=<clave>. Lo guarda solo en este móvil y lo borra de la barra
+   de direcciones; después recupera el historial de la hoja y sube lo que falte. */
+let conectarAlAbrir=false;
+(function(){
+  if(!/[#&]u=/.test(location.hash)) return;
+  const p=new URLSearchParams(location.hash.slice(1));
+  if(p.get('u')&&p.get('k')){
+    try{ localStorage.setItem(SYNC_CFG_KEY, JSON.stringify({url:p.get('u').trim(), key:p.get('k').trim()})); conectarAlAbrir=true; }catch(e){}
+  }
+  history.replaceState(null,'',location.pathname+location.search);
+})();
+window.addEventListener('load', ()=> setTimeout(async ()=>{
+  if(conectarAlAbrir){
+    try{ const n=await restoreFromSheet(); toast(`✅ Conectado con tu hoja${n?' · '+n+' sesiones recuperadas':''}`); }
+    catch(e){ toast('Conectado, pero no se pudo leer la hoja: '+((e&&e.message)||e)); }
+    syncNow(true);
+  } else syncNow(false);
+}, conectarAlAbrir?300:2500));
 window.addEventListener('online', ()=> syncNow(false));
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') syncNow(false); });
 
@@ -1957,6 +2022,7 @@ function viewSync(){
       <button class="btn primary" style="width:100%;margin-top:10px" onclick="syncNow(true)">☁️ Subir ahora</button>
       <div class="note" style="margin-top:8px">Se sube sola cada vez que abres la app con internet.</div>
       <a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:8px" href="${MI_EXCEL_URL}" target="_blank" rel="noopener">📗 Abrir mi hoja</a>
+      <button class="btn" style="width:100%;margin-top:8px" onclick="recuperarHoja()">⬇️ Recuperar datos de la hoja</button>
       <details style="margin-top:8px"><summary class="note" style="cursor:pointer">Cambiar enlace o clave</summary>${campos}</details>`
     :`<div class="note">Conecta la app con tu hoja de Google para que tus datos se suban solos cada vez que abras la app.</div>
       ${campos}
