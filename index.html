@@ -953,6 +953,8 @@ function viewStorage(){
       : `Espacio de sobra: a tu ritmo actual te caben ~<b>${restTxt}</b> más de registros.`}</div>
     <div class="row" style="margin-top:10px">
       <button class="btn" onclick="exportJSON()">⬇️ Guardar copia (JSON)</button>
+      <button class="btn" onclick="document.getElementById('impFile2').click()">⬆️ Importar copia</button>
+      <input type="file" id="impFile2" accept=".json,application/json" class="hidden" onchange="importJSON(this)">
       ${S.backup&&S.backup.lastExport?`<span class="note" style="align-self:center">Última copia: ${S.backup.lastExport}</span>`:''}
     </div>
   </div>`;
