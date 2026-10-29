@@ -1522,8 +1522,9 @@ function viewMedidas(){
         <div class="field"><label>⚖️ Peso (kg)</label><input type="number" step="0.05" inputmode="decimal" value="${esc(peso)}" onfocus="this.select()" onchange="medPeso(this.value)"></div>
       </div>
       <div class="medgrid">
-        ${MEDIDAS.map(([k,l])=>`<div class="field"><label>${l}${pm&&m[k]?' '+medDelta(m[k],pm[k]):''}</label>
-          <input type="number" step="0.1" inputmode="decimal" placeholder="${pm&&pm[k]?fmtKg(+pm[k]):'cm'}" value="${esc(m[k]??'')}" onfocus="this.select()" onchange="medSet('${k}',this.value)"></div>`).join('')}
+        ${MEDIDAS.map(([k,l])=>{ const pf=fs.filter(x=>x<f && S.medidas[x][k]).pop(), pv=pf?S.medidas[pf][k]:null;   // última vez que tomaste esta medida
+          return `<div class="field"><label>${l}${pv&&m[k]?' '+medDelta(m[k],pv):''}</label>
+          <input type="number" step="0.1" inputmode="decimal" placeholder="${pv?fmtKg(+pv):'cm'}" value="${esc(m[k]??'')}" onfocus="this.select()" onchange="medSet('${k}',this.value)"></div>`; }).join('')}
       </div>
       <div class="field" style="margin-top:8px"><label>Notas</label>
         <textarea placeholder="Cómo te ves, cambios, fotos hechas…" onchange="medSet('nota',this.value)">${esc(m.nota??'')}</textarea></div>
@@ -1542,9 +1543,10 @@ function viewMedidas(){
       <div class="medtable"><table>
         <tr><th></th>${cols.map(x=>`<th><a href="#" onclick="medAbrir('${x}');return false">${fmtFecha(x)}</a></th>`).join('')}${fs.length>1?'<th>Total</th>':''}</tr>
         <tr><td>Peso</td>${cols.map(x=>`<td>${(S.days[x]||{}).peso?fmtKg(+S.days[x].peso):'–'}</td>`).join('')}${fs.length>1?`<td>${medDelta((S.days[last]||{}).peso,(S.days[first]||{}).peso)}</td>`:''}</tr>
-        ${MEDIDAS.map(([k,l])=>`<tr><td>${l}</td>${cols.map(x=>`<td>${S.medidas[x][k]?fmtKg(+S.medidas[x][k]):'–'}</td>`).join('')}${fs.length>1?`<td>${medDelta(S.medidas[last][k],S.medidas[first][k])}</td>`:''}</tr>`).join('')}
+        ${MEDIDAS.map(([k,l])=>{ const conDato=fs.filter(x=>S.medidas[x][k]), ini=conDato[0], fin=conDato[conDato.length-1];   // cada medida compara desde la primera vez que la tomaste
+          return `<tr><td>${l}</td>${cols.map(x=>`<td>${S.medidas[x][k]?fmtKg(+S.medidas[x][k]):'–'}</td>`).join('')}${fs.length>1?`<td>${conDato.length>1?medDelta(S.medidas[fin][k],S.medidas[ini][k]):''}</td>`:''}</tr>`; }).join('')}
       </table></div>
-      <div class="note" style="margin-top:6px">${fs.length>4?`Se ven las 4 últimas de ${fs.length}. `:''}Total = cambio desde la primera medición (${fmtFecha(first)}). Toca una fecha para verla o corregirla.</div>
+      <div class="note" style="margin-top:6px">${fs.length>4?`Se ven las 4 últimas de ${fs.length}. `:''}Total = cambio desde la primera vez que tomaste cada medida. Toca una fecha para verla o corregirla.</div>
     </div>`;
   }
   return html;
