@@ -515,31 +515,35 @@ function loadStep(ex, c, dir){
   const q=equipo(ex), inc = q==='mancuernas' ? (c<8?1:2) : q==='discos' ? 2.5 : null;
   return inc==null ? null : Math.max(0, c+dir*inc);
 }
-/* Máximo estimado (Epley) a partir de peso, reps y RIR: sirve para dimensionar el salto */
-/* "Técnica primero" (corrección del coach, vídeo semana 11-12): si no puedes subir peso porque se te va
-   la técnica, mantén el peso y sube repeticiones hasta 17-18; entonces sí, sube peso.
-   Se activa solo cuando una subida de peso salió mal (no llegaste al mínimo o te quedaste corto),
-   o a mano desde el ejercicio. S.tecnica[nombre] = true/false fuerza el modo. */
-const TEC_META=17, TEC_TECHO=18;
-/* "Prioridad repeticiones" (vídeo de corrección semana 11): en todos los ejercicios suma 2-5 reps por serie
-   con el mismo peso, aunque pases de 20; prefiere subir reps antes que peso (obliga a mantener la técnica,
-   sin rebotes). Solo se sube peso cuando todas las series llegan a REPS_TOPE. S.prioReps=false lo desactiva. */
-const REPS_TOPE=25;
-function prioReps(){ return S.prioReps!==false; }
+/* ===== Prioridad de progresión (se elige en general y se puede cambiar por ejercicio) =====
+   · 'reps' → mantener el peso y subir repeticiones (vídeo de corrección semana 11: sube reps antes que peso,
+     obliga a mantener la técnica). El rango se amplía por arriba: +4 reps en ejercicios de rango bajo (≤10),
+     +5 en el resto, sin pasar de 22 (más allá la serie la limita el ardor y la técnica, no el músculo).
+     Al llegar a ese techo en todas las series → sube un escalón y vuelve a la parte alta del rango.
+   · 'peso' → doble progresión clásica: al llegar al tope del rango sube peso y bajan las reps.
+   Si una subida de peso sale mal, ese ejercicio pasa solo a 'reps' ("técnica primero"). */
+const PRIO_TXT={reps:'➕ Subir reps', peso:'🏋️ Subir peso'};
+function prioGeneral(){ return S.prio ? S.prio : (S.prioReps===false ? 'peso' : 'reps'); }
+function setPrioGeneral(m){ S.prio=m; delete S.prioReps; save(); render(); }
+function repsTecho(lo, hi){ return Math.max(hi, Math.min(22, hi+(hi<=10?4:5))); }
 function cargaMax(h){ const cs=h.ser.map(s=>numKg(s.c)).filter(x=>x!=null); return cs.length?Math.max(...cs):0; }
 function subidaFallida(h, ant, lo){ return cargaMax(h)>cargaMax(ant) && ((parseFloat(h.ser[0].r)||0)<lo || h.e.res==='corto'); }
-function tecnicaPrimero(ex, hist, lo){
-  const man=(S.tecnica||{})[ex.n.toLowerCase()];
-  if(man===true||man===false) return man;
-  for(let i=0;i<Math.min(hist.length-1,4);i++) if(subidaFallida(hist[i],hist[i+1],lo)) return true;
-  return false;
+function prioridad(ex, hist, lo){
+  const k=ex.n.toLowerCase();
+  let auto=false; for(let i=0;i<Math.min(hist.length-1,4);i++) if(subidaFallida(hist[i],hist[i+1],lo)){ auto=true; break; }
+  const man=(S.prioEj||{})[k] || ((S.tecnica||{})[k]===true ? 'reps' : null);
+  if(man) return {modo:man, origen:'manual', auto};
+  if(auto) return {modo:'reps', origen:'auto', auto};
+  return {modo:prioGeneral(), origen:'general', auto};
 }
-function tecnicaEstado(ex, f, d, micro){
-  const hist=exSessions(ex.id, f, d, micro), [lo]=exRange(ex);
-  const man=(S.tecnica||{})[ex.n.toLowerCase()];
-  return {activo:tecnicaPrimero(ex,hist,lo), manual:man===true||man===false};
+function prioEstado(ex, f, d, micro){ const [lo]=exRange(ex); return prioridad(ex, exSessions(ex.id, f, d, micro), lo); }
+function togglePrio(nombre, actual, auto){
+  const k=nombre.toLowerCase(), nuevo=actual==='reps'?'peso':'reps';
+  S.prioEj=S.prioEj||{}; if(S.tecnica) delete S.tecnica[k];
+  if(nuevo===prioGeneral() && !(auto && nuevo==='peso')) delete S.prioEj[k]; else S.prioEj[k]=nuevo;
+  save(); render();
 }
-function toggleTecnica(nombre, activo){ S.tecnica=S.tecnica||{}; S.tecnica[nombre.toLowerCase()]=!activo; save(); render(); }
+/* Máximo estimado (Epley) a partir de peso, reps y RIR: sirve para dimensionar el salto */
 function e1rm(c, r, rir){ return c*(1+(r+(rir==null?1:rir))/30); }
 function repsCon(max, c){ return Math.floor(30*(max/c-1)-2); }     // reps esperables dejando RIR 2
 function autoTip(ex, f, d, micro){
@@ -553,9 +557,10 @@ function autoTip(ex, f, d, micro){
   const conPeso=c!=null&&c>0;
   const hecho=`M${last.m}: ${ser.map((s,i)=>`${conPeso?fmtKg(numKg(s.c)??c)+'×':''}${reps[i]}${rirs[i]!=null?' RIR'+rirs[i]:''}`).join(' · ')}`;
   const kg=v=>fmtKg(v)+'kg ';
-  const tec=tecnicaPrimero(ex, hist, lo);
-  const techo = tec ? Math.max(hi, TEC_TECHO) : hi, meta = tec ? Math.max(hi, TEC_META) : hi;
-  const modo = tec ? ' (técnica primero)' : '';
+  const pr=prioridad(ex, hist, lo), modoReps=pr.modo==='reps';
+  const techo = modoReps ? repsTecho(lo,hi) : hi;
+  const modo = modoReps ? (pr.origen==='auto' ? ' (técnica primero)' : ' (prioridad reps)') : '';
+  const tecnica = 'Negativa controlada, 1 s de pausa abajo y sin rebote.';
   if(PAIN_RX.test(last.e.obs||''))
     return {texto:(conPeso?kg(c):'')+reps.join('-'), porque:'Anotaste molestias: repite lo mismo cuidando la técnica. Si vuelve a molestar, baja peso.', hecho, tipo:'cuidado'};
   if(hist.length>=3 && conPeso){
@@ -565,46 +570,25 @@ function autoTip(ex, f, d, micro){
       return {texto:`${nc!=null?kg(nc):'Baja un escalón · '}a ${hi}`, porque:'Llevas 3 sesiones sin progresar: baja un poco el peso, haz más reps y vuelve a construir.', hecho, tipo:'cuidado'};
     }
   }
-  // la última subida de peso salió mal → vuelve al peso anterior y sube reps hasta 17-18
-  if(tec && hist.length>=2 && subidaFallida(last, hist[1], lo)){
-    const ant=hist[1], pc=cargaMax(ant), pr=ant.ser.slice(0,n).map(s=>parseFloat(s.r)||lo);
-    const prio=prioReps();
-    const t=[]; for(let i=0;i<n;i++){ let v=(pr[i]??pr[0])+(prio?2:1); if(!prio) v=Math.min(techo,v); if(i>0) v=Math.min(v,t[i-1]); t.push(v); }
-    return {texto:`${pc?kg(pc):''}${t.join('-')}`, porque:`Al subir a ${fmtKg(c)} kg no llegaste. Corrección del coach: vuelve a ${fmtKg(pc)} kg y sube repeticiones${prio?'':` hasta ${TEC_META}-${TEC_TECHO}`}; entonces sube peso.`, hecho, tipo:'cuidado'};
+  // la última subida de peso salió mal → vuelve al peso anterior y sube reps (técnica primero)
+  if(modoReps && hist.length>=2 && subidaFallida(last, hist[1], lo)){
+    const ant=hist[1], pc=cargaMax(ant), pr2=ant.ser.slice(0,n).map(s=>parseFloat(s.r)||lo);
+    const t=[]; for(let i=0;i<n;i++){ let v=Math.min(techo, (pr2[i]??pr2[0])+2); if(i>0) v=Math.min(v,t[i-1]); t.push(v); }
+    return {texto:`${pc?kg(pc):''}${t.join('-')}`, porque:`Al subir a ${fmtKg(c)} kg no llegaste: vuelve a ${fmtKg(pc)} kg y sube repeticiones hasta ${techo}; entonces sube peso. ${tecnica}`, hecho, tipo:'cuidado'};
   }
-  // prioridad repeticiones: mismo peso y +2-5 reps por serie (más cuanto más RIR te sobró), sin techo hasta REPS_TOPE
-  if(prioReps() && !(reps[0]<lo && conPeso && rmin!=null && rmin<=1)){
-    if(reps.length>=n && reps.every(r=>r>=REPS_TOPE)){
-      if(!conPeso) return {texto:`Añade un disco · a ${TEC_META}`, porque:`Llegaste a ${REPS_TOPE} reps en todas las series: ahora sí, añade carga.`, hecho, tipo:'sube'};
-      const nc=loadStep(ex,c,+1);
-      return {texto:`${nc!=null?kg(nc):'Sube un escalón · '}a ${TEC_META}`, porque:`Llegaste a ${REPS_TOPE} reps en todas las series con el mismo peso → ahora sí, sube un escalón.${nc==null?' Apunta el peso nuevo al hacerlo.':''}`, hecho, tipo:'sube'};
-    }
-    const corto=last.e.res==='corto', t=[], pasos=[];
-    for(let i=0;i<n;i++){
-      const r=reps[i]>0 ? reps[i] : (t[i-1]!=null?t[i-1]:lo), rir=rirs[i];
-      const paso = corto ? 0 : rir==null ? 2 : rir>=4 ? 5 : rir>=3 ? 4 : rir>=2 ? 3 : 2;
-      let v=Math.max(lo, r+paso);
-      if(i>0) v=Math.min(v, t[i-1]);           // la 1ª serie siempre ≥ la 2ª
-      t.push(v); pasos.push(v-r);
-    }
-    const pos=pasos.filter(p=>p>0), pmin=pos.length?Math.min(...pos):2, pmax=pos.length?Math.max(...pos):2;
-    return {texto:`${conPeso?kg(c):''}${t.join('-')}`,
-            porque: corto ? 'Te quedaste corto: repite el mismo objetivo, con negativa controlada y sin rebote.'
-                          : `Corrección del coach: mismo peso y +${pmin}${pmax>pmin?'-'+pmax:''} reps por serie (aunque pases de 20). Sube reps antes que peso: negativa controlada, 1 s de pausa abajo y sin rebote.`,
-            hecho, tipo:corto?'mantener':'reps'};
-  }
-  const tope = reps.length>=n && reps.every(r=>r>=meta);
-  const sobra = !tec && rmin!=null && rmin>=4 && reps.every(r=>r>=lo);
+  const tope = reps.length>=n && reps.every(r=>r>=techo);
+  const sobra = !modoReps && rmin!=null && rmin>=4 && reps.every(r=>r>=lo);
   if(tope || sobra){
-    if(!conPeso) return {texto:`Añade un disco · a ${lo}`, porque:`Llegaste a ${hi} en todas las series: añade algo de carga y vuelve a ${lo}.`, hecho, tipo:'sube'};
+    if(!conPeso) return {texto:`Añade un disco · a ${lo}`, porque:`Llegaste a ${techo} en todas las series: añade algo de carga y vuelve a ${lo}.`, hecho, tipo:'sube'};
     const max=e1rm(c, reps[0], rirs[0]);
     let nc=loadStep(ex,c,+1);
-    const lejos = !tec && (reps[0]>=hi+3 || (rmin!=null&&rmin>=4));   // en "técnica primero" se sube de escalón en escalón
-    const porque = tope ? `Llegaste a ${meta}${modo} en todas las series → sube peso${lejos?' (bastante: ibas muy por encima)':''}.`
-                        : 'Te sobraban 4 o más reps (RIR alto) → el peso se queda corto, súbelo.';
+    const lejos = !modoReps && (reps[0]>=hi+3 || (rmin!=null&&rmin>=4));   // con prioridad reps se sube de escalón en escalón
+    const porque = !tope ? 'Te sobraban 4 o más reps (RIR alto) → el peso se queda corto, súbelo.'
+                 : modoReps ? `Llegaste a ${techo} reps en todas las series con el mismo peso${modo} → ahora sí, sube un escalón y vuelve a sumar reps desde ahí.`
+                 : `Llegaste a ${hi} en todas las series → sube peso${lejos?' (bastante: ibas muy por encima)':''} y bajan las reps.`;
     if(nc==null){
       const esc2 = lejos ? 'Sube 2 escalones' : 'Sube un escalón';
-      return {texto:`${esc2} · a ${lo}`, porque:porque+' Apunta el peso nuevo al hacerlo.', hecho, tipo:'sube'};
+      return {texto:`${esc2} · a ${modoReps?hi:lo}`, porque:porque+' Apunta el peso nuevo al hacerlo.', hecho, tipo:'sube'};
     }
     // si ibas muy por encima del rango, sigue subiendo escalones mientras puedas hacer el rango medio
     const medio=Math.round((lo+hi)/2);
@@ -619,17 +603,23 @@ function autoTip(ex, f, d, micro){
     }
     return {texto:`${conPeso?kg(c):''}a ${lo}`, porque:`Mismo peso, busca llegar al mínimo del rango (${lo}).`, hecho, tipo:'mantener'};
   }
+  // mismo peso y más reps: cuantas más te sobraron (RIR), más subes
   const corto = last.e.res==='corto';
-  const t=[];
+  const t=[], pasos=[];
   for(let i=0;i<n;i++){
     const r=reps[i]!=null&&reps[i]>0 ? reps[i] : (t[i-1]!=null?t[i-1]:lo), rir=rirs[i];
-    const paso = corto ? 0 : rir==null ? 1 : rir>=3 ? 3 : rir>=2 ? 2 : 1;
+    const paso = corto ? 0 : rir==null ? (modoReps?2:1) : modoReps ? (rir>=4?4:rir>=3?3:rir>=2?2:1) : (rir>=3?3:rir>=2?2:1);
     let v=Math.min(techo, Math.max(lo, r+paso));
     if(i>0) v=Math.min(v, t[i-1]);           // la 1ª serie siempre ≥ la 2ª
-    t.push(v);
+    t.push(v); pasos.push(v-r);
   }
+  const pos=pasos.filter(p=>p>0), pmin=pos.length?Math.min(...pos):1, pmax=pos.length?Math.max(...pos):1;
+  const suma=`+${pmin}${pmax>pmin?'-'+pmax:''} rep${pmax>1?'s':''} por serie`;
   return {texto:`${conPeso?kg(c):''}${t.join('-')}`,
-          porque: corto?'Te quedaste corto: repite el mismo objetivo.':`Mismo peso y ${rmin!=null&&rmin>=2?'+2':'+1'} rep por serie hasta llegar a ${tec?TEC_META+'-'+TEC_TECHO:hi}${modo}.`, hecho, tipo:corto?'mantener':'reps'};
+          porque: corto ? `Te quedaste corto: repite el mismo objetivo. ${tecnica}`
+                : modoReps ? `Mismo peso y ${suma} hasta llegar a ${techo}${modo}; entonces sube peso. ${tecnica}`
+                : `Mismo peso y ${suma} hasta llegar a ${hi}; entonces sube peso y bajan las reps.`,
+          hecho, tipo:corto?'mantener':'reps'};
 }
 
 const MUSCLE = {
@@ -1197,10 +1187,13 @@ function viewEntreno(){
       </div>
       ${ex.t?`<div class="tiptext">💡 ${esc(ex.t)}</div>`:''}
       ${(function(){
-        const nCorr=corrDe(ex.n).length, open=S.ui.corrOpen===ex.id, te=tecnicaEstado(ex, fase, dia, micro);
+        const nCorr=corrDe(ex.n).length, open=S.ui.corrOpen===ex.id, pe2=prioEstado(ex, fase, dia, micro);
+        const [lo2,hi2]=exRange(ex), suf = pe2.origen==='manual' ? ' · solo este' : pe2.origen==='auto' ? ' · técnica primero' : '';
+        const tit = pe2.modo==='reps' ? `Mismo peso, subir reps hasta ${repsTecho(lo2,hi2)}; entonces sube peso. Toca para cambiar a subir peso.`
+                                      : `Al llegar a ${hi2} reps sube peso y bajan las reps. Toca para cambiar a subir reps.`;
         return `<div class="row" style="margin-top:8px;gap:6px">
           <span class="chip ${open?'on-good':''}" onclick="toggleCorr('${ex.id}')">📝 Correcciones${nCorr?' ('+nCorr+')':''}</span>
-          <span class="chip ${te.activo?'on-bad':''}" onclick="toggleTecnica('${esc(ex.n).replace(/'/g,"\\'")}',${te.activo})" title="Mantener peso y subir reps hasta 17-18 antes de subir peso">🎯 Técnica primero${te.activo?(te.manual?' · sí':' · auto'):''}</span>
+          <span class="chip ${pe2.origen!=='general'?'on-good':''}" onclick="togglePrio('${esc(ex.n).replace(/'/g,"\\'")}','${pe2.modo}',${pe2.auto})" title="${tit}">${PRIO_TXT[pe2.modo]}${pe2.modo==='reps'?' (hasta '+repsTecho(lo2,hi2)+')':''}${suf}</span>
         </div>${open?corrPanel(ex):''}`;
       })()}
       ${(function(){
@@ -1436,8 +1429,16 @@ function mismoEjercicio(a,b){
   const A=corrTokens(a), B=corrTokens(b); if(!A.size||!B.size) return false;
   const [p,g]=A.size<=B.size?[A,B]:[B,A]; for(const w of p) if(!g.has(w)) return false; return true;
 }
-function corrTodas(){ return CORR_BASE.map((c,i)=>({...c, id:'b'+i})).concat((S.corr||[]).map((c,i)=>({...c, id:'u'+i, mia:true})))
-  .sort((a,b)=>b.fecha.localeCompare(a.fecha)); }
+/* Las del coach se pueden editar o quitar desde la app: el cambio se guarda en S.corrMod (clave = fecha + inicio del
+   texto original), sin tocar la lista base; "Restaurar" lo deshace. Las tuyas (S.corr) se editan directamente. */
+const CORR_TIPOS={tecnica:'🎯 Técnica', regla:'📌 Regla general', cambio:'🔄 Cambio de ejercicio', bien:'✅ Bien hecho', pendiente:'⏳ Pendiente'};
+function corrClave(c){ return c.fecha+'|'+c.txt.slice(0,40); }
+function corrTodas(){
+  const mod=S.corrMod||{};
+  return CORR_BASE.map((c,i)=>{ const m=mod[corrClave(c)]; return m&&m.borrada ? null : {...c, ...(m||{}), id:'b'+i, editada:!!m}; }).filter(Boolean)
+    .concat((S.corr||[]).map((c,i)=>({...c, id:'u'+i, mia:true})))
+    .sort((a,b)=>b.fecha.localeCompare(a.fecha));
+}
 function corrDe(nombre){ return corrTodas().filter(c=>c.ej && mismoEjercicio(c.ej, nombre)); }
 function corrReglas(){ return corrTodas().filter(c=>!c.ej); }
 function corrItem(c, conEj=true){
@@ -1445,25 +1446,55 @@ function corrItem(c, conEj=true){
   const vid=c.video?(S.coachVids||[]).find(v=>v.url===c.video)
           :c.vid?(S.coachVids||[]).find(v=>(v.titulo||'').toLowerCase().includes(c.vid)):null;
   if(vid && !c.video) c={...c, video:vid.url};
+  if(S.ui.corrEdit===c.id){
+    const nombres=[...new Set(Object.values(ALL_EX).map(e=>e.n))].sort((a,b)=>a.localeCompare(b));
+    return `<div class="corritem">
+      <input type="text" id="ceEj" list="ceEjList" value="${esc(c.ej||'')}" placeholder="Ejercicio (vacío = regla general)">
+      <datalist id="ceEjList">${nombres.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+      <textarea id="ceTxt" rows="3" style="margin-top:6px;width:100%">${esc(c.txt)}</textarea>
+      <select id="ceTipo" style="margin-top:6px;width:100%">${Object.entries(CORR_TIPOS).map(([k,t])=>`<option value="${k}"${(c.tipo||'tecnica')===k?' selected':''}>${t}</option>`).join('')}</select>
+      <div class="row" style="margin-top:6px;gap:6px">
+        <button class="btn small primary" style="flex:1" onclick="corrGuardar('${c.id}')">Guardar</button>
+        <button class="btn small" onclick="corrEditar('${c.id}')">Cancelar</button>
+        <button class="btn small" style="color:var(--bad)" onclick="corrBorrar('${c.id}')">Borrar</button>
+      </div></div>`;
+  }
   return `<div class="corritem ${c.tipo||'tecnica'}"><span class="pill">${fmtFecha(c.fecha)}</span> ${CORR_ICO[c.tipo]||'🎯'} ${esc(c.txt)}
     ${c.ej&&conEj?`<div class="note">${esc(c.ej)}</div>`:''}
     ${vid||c.video?`<div class="note"><a href="${esc(c.video)}" target="_blank" rel="noopener">🎥 ${esc(vid?vid.titulo:'Ver vídeo')}${c.min?' · min '+esc(c.min):''}</a></div>`:''}
-    ${c.mia?`<a href="#" class="note" style="color:var(--bad)" onclick="delCorr(${+c.id.slice(1)});return false">borrar</a>`:''}</div>`;
+    <a href="#" class="note" onclick="corrEditar('${c.id}');return false">✏️ editar</a>${c.editada?' <span class="note">· editada por ti</span>':c.mia?' <span class="note">· añadida por ti</span>':''}</div>`;
 }
 function addCorr(ej, txtId, vidId, minId){
   const txt=document.getElementById(txtId).value.trim(); if(!txt){ toast('Escribe la corrección'); return; }
   const video=vidId?document.getElementById(vidId).value:'', min=minId?document.getElementById(minId).value.trim():'';
   S.corr=S.corr||[]; S.corr.push({fecha:todayStr(), ej, tipo:ej?'tecnica':'regla', txt, video, min}); save(); render(); toast('Corrección guardada 📝');
 }
-function delCorr(i){ S.corr.splice(i,1); save(); render(); }
+function corrEditar(id){ S.ui.corrEdit=S.ui.corrEdit===id?null:id; save(); render(); }
+function corrGuardar(id){
+  const ej=document.getElementById('ceEj').value.trim(), txt=document.getElementById('ceTxt').value.trim(), tipo=document.getElementById('ceTipo').value;
+  if(!txt){ toast('Escribe la corrección'); return; }
+  if(id[0]==='u') Object.assign(S.corr[+id.slice(1)], {ej, txt, tipo});
+  else { S.corrMod=S.corrMod||{}; S.corrMod[corrClave(CORR_BASE[+id.slice(1)])]={ej, txt, tipo}; }
+  S.ui.corrEdit=null; save(); render(); toast('Corrección guardada ✏️');
+}
+function corrBorrar(id){
+  if(!confirm('¿Borrar esta corrección?')) return;
+  if(id[0]==='u') S.corr.splice(+id.slice(1),1);
+  else { S.corrMod=S.corrMod||{}; S.corrMod[corrClave(CORR_BASE[+id.slice(1)])]={borrada:true}; }
+  S.ui.corrEdit=null; save(); render();
+}
+function corrRestaurar(){
+  if(!confirm('¿Volver a las correcciones originales del coach? Las que añadiste tú se mantienen.')) return;
+  S.corrMod={}; save(); render(); toast('Correcciones restauradas');
+}
 function toggleCorr(id){ S.ui.corrOpen=S.ui.corrOpen===id?null:id; save(); render(); }
 /* Panel de correcciones dentro de cada ejercicio (Entreno) */
 function corrPanel(ex){
   const lista=corrDe(ex.n), reglas=corrReglas();
   return `<div class="corrpanel">
-    ${lista.length?lista.map(corrItem).join(''):'<div class="note">El coach no te dejó correcciones de este ejercicio.</div>'}
+    ${lista.length?lista.map(c=>corrItem(c,false)).join(''):'<div class="note">El coach no te dejó correcciones de este ejercicio.</div>'}
     <div class="note" style="margin-top:8px;font-weight:600">Reglas generales</div>
-    ${reglas.map(corrItem).join('')}
+    ${reglas.map(c=>corrItem(c)).join('')}
     <div class="row" style="margin-top:8px">
       <input type="text" id="corrTxt_${ex.id}" placeholder="Añadir corrección de este ejercicio…" style="flex:1;min-width:0">
       <button class="btn small" onclick="addCorr('${esc(ex.n).replace(/'/g,"\\'")}','corrTxt_${ex.id}')">➕</button>
@@ -1500,12 +1531,16 @@ function viewCorrecciones(){
   </div>
   <h2>📌 Reglas generales</h2>
   <div class="card">
-    <div class="row" style="justify-content:space-between;align-items:center;gap:8px">
-      <div><b>🔁 Prioridad repeticiones</b><div class="note">La progresión automática suma 2-5 reps con el mismo peso y solo sube peso cuando llegas a ${REPS_TOPE} reps en todas las series.</div></div>
-      <button class="btn small${prioReps()?' primary':''}" onclick="S.prioReps=!prioReps();save();render()">${prioReps()?'Activa':'Desactivada'}</button>
+    <div class="exname">⚖️ Prioridad de progresión</div>
+    <div class="row" style="gap:6px;margin-top:6px">
+      ${['reps','peso'].map(m=>`<button class="btn small${prioGeneral()===m?' primary':''}" style="flex:1" onclick="setPrioGeneral('${m}')">${PRIO_TXT[m]}</button>`).join('')}
     </div>
+    <div class="note" style="margin-top:6px">${prioGeneral()==='reps'
+      ? 'Mismo peso y más reps cada sesión (+1 a +4 según el RIR). El rango se amplía por arriba: +4 reps en los de rango bajo (ej. 6-10 → hasta 14) y +5 en el resto (12 → 17, 15 → 20), máximo 22. Al llegar ahí en todas las series, sube un escalón.'
+      : 'Doble progresión clásica: mismo peso y +1 a +3 reps hasta el tope del rango; entonces sube peso y bajan las reps. Si te sobran 4 o más reps, sube ya.'}
+      Puedes cambiarlo en cada ejercicio con su botón en Entreno. Si una subida de peso te sale mal, ese ejercicio pasa solo a subir reps (técnica primero).</div>
   </div>
-  <div class="card">${corrReglas().map(corrItem).join('')}</div>
+  <div class="card">${corrReglas().map(c=>corrItem(c)).join('')}</div>
   <h2>🎯 Por ejercicio</h2>
   <div class="card">
     <div class="field"><label>Añadir corrección</label>
@@ -1520,7 +1555,8 @@ function viewCorrecciones(){
   </div>
   <div class="card">
     ${nombres.map(n=>`<div class="libitem"><div class="exname">${esc(n)}</div>${grupos[n].map(c=>corrItem(c,false)).join('')}</div>`).join('')}
-  </div>`;
+  </div>
+  ${Object.keys(S.corrMod||{}).length?`<div class="note" style="text-align:center;margin:8px 0"><a href="#" onclick="corrRestaurar();return false">↩️ Restaurar las correcciones originales del coach (${Object.keys(S.corrMod).length} cambiadas)</a></div>`:''}`;
 }
 
 /* ================= BIBLIOTECA DE VÍDEOS ================= */
@@ -2089,6 +2125,9 @@ function importJSON(inp){
     for(const [f,m] of Object.entries(d.medidas||{})) if(!medTiene(S.medidas[f])) S.medidas[f]=m;
     S.coachVids=S.coachVids||[]; for(const v of d.coachVids||[]) if(!S.coachVids.some(x=>x.url===v.url)) S.coachVids.push(v);
     S.corr=S.corr||[]; for(const c of d.corr||[]) if(!S.corr.some(x=>x.txt===c.txt&&x.ej===c.ej)) S.corr.push(c);
+    S.corrMod=Object.assign({}, d.corrMod||{}, S.corrMod||{});
+    S.prioEj =Object.assign({}, d.prioEj||{},  S.prioEj||{});
+    if(!S.prio && d.prio) S.prio=d.prio;
     // COMBINA (no reemplaza): lo importado rellena huecos; lo que ya tienes manda si coincide
     // días: campo a campo; lo que ya tienes manda, pero un campo vacío no pisa un dato importado
     const lleno=v=>!(v===''||v==null||(typeof v==='object'&&!Object.keys(v).length));
