@@ -148,6 +148,11 @@ table.xl td.lbl{text-align:left; color:var(--muted); font-size:12px}
 .alertbar b{color:inherit}
 .exchange{background:var(--bad-soft); color:var(--bad); border:1px solid var(--bad); border-radius:10px; padding:9px 11px; margin-top:8px; font-size:13px; line-height:1.4}
 .exchange b{color:inherit}
+.corrpanel{margin-top:8px; padding:8px 10px; border-radius:10px; background:var(--accent-soft)}
+.corritem{font-size:13px; line-height:1.4; padding:6px 0; border-top:1px solid var(--line)}
+.corritem:first-child{border-top:0}
+.corritem.cambio{color:var(--bad)}
+.corritem .pill{font-size:10.5px}
 .medgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-top:10px}
 .medgrid .field{min-width:0; display:flex; flex-direction:column; justify-content:flex-end}
 .medgrid label{font-size:11.5px}
@@ -509,6 +514,25 @@ function loadStep(ex, c, dir){
   return inc==null ? null : Math.max(0, c+dir*inc);
 }
 /* Máximo estimado (Epley) a partir de peso, reps y RIR: sirve para dimensionar el salto */
+/* "Técnica primero" (corrección del coach, vídeo semana 11-12): si no puedes subir peso porque se te va
+   la técnica, mantén el peso y sube repeticiones hasta 17-18; entonces sí, sube peso.
+   Se activa solo cuando una subida de peso salió mal (no llegaste al mínimo o te quedaste corto),
+   o a mano desde el ejercicio. S.tecnica[nombre] = true/false fuerza el modo. */
+const TEC_META=17, TEC_TECHO=18;
+function cargaMax(h){ const cs=h.ser.map(s=>numKg(s.c)).filter(x=>x!=null); return cs.length?Math.max(...cs):0; }
+function subidaFallida(h, ant, lo){ return cargaMax(h)>cargaMax(ant) && ((parseFloat(h.ser[0].r)||0)<lo || h.e.res==='corto'); }
+function tecnicaPrimero(ex, hist, lo){
+  const man=(S.tecnica||{})[ex.n.toLowerCase()];
+  if(man===true||man===false) return man;
+  for(let i=0;i<Math.min(hist.length-1,4);i++) if(subidaFallida(hist[i],hist[i+1],lo)) return true;
+  return false;
+}
+function tecnicaEstado(ex, f, d, micro){
+  const hist=exSessions(ex.id, f, d, micro), [lo]=exRange(ex);
+  const man=(S.tecnica||{})[ex.n.toLowerCase()];
+  return {activo:tecnicaPrimero(ex,hist,lo), manual:man===true||man===false};
+}
+function toggleTecnica(nombre, activo){ S.tecnica=S.tecnica||{}; S.tecnica[nombre.toLowerCase()]=!activo; save(); render(); }
 function e1rm(c, r, rir){ return c*(1+(r+(rir==null?1:rir))/30); }
 function repsCon(max, c){ return Math.floor(30*(max/c-1)-2); }     // reps esperables dejando RIR 2
 function autoTip(ex, f, d, micro){
@@ -522,6 +546,9 @@ function autoTip(ex, f, d, micro){
   const conPeso=c!=null&&c>0;
   const hecho=`M${last.m}: ${ser.map((s,i)=>`${conPeso?fmtKg(numKg(s.c)??c)+'×':''}${reps[i]}${rirs[i]!=null?' RIR'+rirs[i]:''}`).join(' · ')}`;
   const kg=v=>fmtKg(v)+'kg ';
+  const tec=tecnicaPrimero(ex, hist, lo);
+  const techo = tec ? Math.max(hi, TEC_TECHO) : hi, meta = tec ? Math.max(hi, TEC_META) : hi;
+  const modo = tec ? ' (técnica primero)' : '';
   if(PAIN_RX.test(last.e.obs||''))
     return {texto:(conPeso?kg(c):'')+reps.join('-'), porque:'Anotaste molestias: repite lo mismo cuidando la técnica. Si vuelve a molestar, baja peso.', hecho, tipo:'cuidado'};
   if(hist.length>=3 && conPeso){
@@ -531,14 +558,20 @@ function autoTip(ex, f, d, micro){
       return {texto:`${nc!=null?kg(nc):'Baja un escalón · '}a ${hi}`, porque:'Llevas 3 sesiones sin progresar: baja un poco el peso, haz más reps y vuelve a construir.', hecho, tipo:'cuidado'};
     }
   }
-  const tope = reps.length>=n && reps.every(r=>r>=hi);
-  const sobra = rmin!=null && rmin>=4 && reps.every(r=>r>=lo);
+  // la última subida de peso salió mal → vuelve al peso anterior y sube reps hasta 17-18
+  if(tec && hist.length>=2 && subidaFallida(last, hist[1], lo)){
+    const ant=hist[1], pc=cargaMax(ant), pr=ant.ser.slice(0,n).map(s=>parseFloat(s.r)||lo);
+    const t=[]; for(let i=0;i<n;i++){ let v=Math.min(techo, (pr[i]??pr[0])+1); if(i>0) v=Math.min(v,t[i-1]); t.push(v); }
+    return {texto:`${pc?kg(pc):''}${t.join('-')}`, porque:`Al subir a ${fmtKg(c)} kg no llegaste. Corrección del coach: vuelve a ${fmtKg(pc)} kg y sube repeticiones hasta ${TEC_META}-${TEC_TECHO}; entonces sube peso.`, hecho, tipo:'cuidado'};
+  }
+  const tope = reps.length>=n && reps.every(r=>r>=meta);
+  const sobra = !tec && rmin!=null && rmin>=4 && reps.every(r=>r>=lo);
   if(tope || sobra){
     if(!conPeso) return {texto:`Añade un disco · a ${lo}`, porque:`Llegaste a ${hi} en todas las series: añade algo de carga y vuelve a ${lo}.`, hecho, tipo:'sube'};
     const max=e1rm(c, reps[0], rirs[0]);
     let nc=loadStep(ex,c,+1);
-    const lejos = reps[0]>=hi+3 || (rmin!=null&&rmin>=4);
-    const porque = tope ? `Llegaste al tope del rango (${hi}) en todas las series → sube peso${lejos?' (bastante: ibas muy por encima)':''}.`
+    const lejos = !tec && (reps[0]>=hi+3 || (rmin!=null&&rmin>=4));   // en "técnica primero" se sube de escalón en escalón
+    const porque = tope ? `Llegaste a ${meta}${modo} en todas las series → sube peso${lejos?' (bastante: ibas muy por encima)':''}.`
                         : 'Te sobraban 4 o más reps (RIR alto) → el peso se queda corto, súbelo.';
     if(nc==null){
       const esc2 = lejos ? 'Sube 2 escalones' : 'Sube un escalón';
@@ -546,7 +579,7 @@ function autoTip(ex, f, d, micro){
     }
     // si ibas muy por encima del rango, sigue subiendo escalones mientras puedas hacer el rango medio
     const medio=Math.round((lo+hi)/2);
-    for(let k=0; k<6; k++){ const sig=loadStep(ex,nc,+1); if(sig==null || repsCon(max,sig)<medio) break; nc=sig; }
+    if(lejos) for(let k=0; k<6; k++){ const sig=loadStep(ex,nc,+1); if(sig==null || repsCon(max,sig)<medio) break; nc=sig; }
     const r=Math.max(lo, Math.min(hi, repsCon(max,nc)));
     return {texto:`${kg(nc)}a ${r}`, porque, hecho, tipo:'sube'};
   }
@@ -562,12 +595,12 @@ function autoTip(ex, f, d, micro){
   for(let i=0;i<n;i++){
     const r=reps[i]!=null&&reps[i]>0 ? reps[i] : (t[i-1]!=null?t[i-1]:lo), rir=rirs[i];
     const paso = corto ? 0 : rir==null ? 1 : rir>=3 ? 3 : rir>=2 ? 2 : 1;
-    let v=Math.min(hi, Math.max(lo, r+paso));
+    let v=Math.min(techo, Math.max(lo, r+paso));
     if(i>0) v=Math.min(v, t[i-1]);           // la 1ª serie siempre ≥ la 2ª
     t.push(v);
   }
   return {texto:`${conPeso?kg(c):''}${t.join('-')}`,
-          porque: corto?'Te quedaste corto: repite el mismo objetivo.':`Mismo peso y ${rmin!=null&&rmin>=2?'+2':'+1'} rep por serie hasta llegar a ${hi}.`, hecho, tipo:corto?'mantener':'reps'};
+          porque: corto?'Te quedaste corto: repite el mismo objetivo.':`Mismo peso y ${rmin!=null&&rmin>=2?'+2':'+1'} rep por serie hasta llegar a ${tec?TEC_META+'-'+TEC_TECHO:hi}${modo}.`, hecho, tipo:corto?'mantener':'reps'};
 }
 
 const MUSCLE = {
@@ -1135,6 +1168,13 @@ function viewEntreno(){
       </div>
       ${ex.t?`<div class="tiptext">💡 ${esc(ex.t)}</div>`:''}
       ${(function(){
+        const nCorr=corrDe(ex.n).length, open=S.ui.corrOpen===ex.id, te=tecnicaEstado(ex, fase, dia, micro);
+        return `<div class="row" style="margin-top:8px;gap:6px">
+          <span class="chip ${open?'on-good':''}" onclick="toggleCorr('${ex.id}')">📝 Correcciones${nCorr?' ('+nCorr+')':''}</span>
+          <span class="chip ${te.activo?'on-bad':''}" onclick="toggleTecnica('${esc(ex.n).replace(/'/g,"\\'")}',${te.activo})" title="Mantener peso y subir reps hasta 17-18 antes de subir peso">🎯 Técnica primero${te.activo?(te.manual?' · sí':' · auto'):''}</span>
+        </div>${open?corrPanel(ex):''}`;
+      })()}
+      ${(function(){
         const isTip = tipTxt && objVal===tipTxt && (e.obj==null||e.obj==='');
         const older=coachHistoryFor(ex.id, micro).slice(latest?1:0);
         const open = S.ui.histOpen===ex.id;
@@ -1303,6 +1343,121 @@ function renderMealCard(meal, st){
     </div>`;
 }
 
+/* ================= CORRECCIONES DEL COACH =================
+   Lo que te ha ido corrigiendo, sacado de sus directrices (fecha = semana en que lo indicó).
+   tipo: tecnica · cambio (de ejercicio) · regla (general, vale para todos los ejercicios).
+   Las que añadas tú (por ejemplo, de sus vídeos de corrección) se guardan en S.corr, solo en tu móvil. */
+const CORR_BASE = [
+  {fecha:'2026-10-30', ej:'', tipo:'regla', txt:'Si no puedes subir peso porque se te va la técnica: mantén el peso y sube repeticiones hasta 17-18. Entonces sí, sube peso.'},
+  {fecha:'2026-07-27', ej:'', tipo:'regla', txt:'En las máquinas de discos y la barra, cuenta solo el peso de los discos.'},
+  {fecha:'2026-07-27', ej:'Prensa inclinada', tipo:'tecnica', txt:'Bájale 20-40 kg y aplica la corrección de técnica.'},
+  {fecha:'2026-07-27', ej:'Remo en T agarre cerrado', tipo:'tecnica', txt:'Corrige el movimiento.'},
+  {fecha:'2026-07-27', ej:'Peso muerto rumano con barra', tipo:'tecnica', txt:'Corregir la técnica.'},
+  {fecha:'2026-07-27', ej:'Hip thrust', tipo:'tecnica', txt:'Súbelo, pero aplicando la corrección de técnica.'},
+  {fecha:'2026-07-27', ej:'Curl de bíceps en polea baja', tipo:'tecnica', txt:'Contrae mejor, sin mover el codo.'},
+  {fecha:'2026-07-27', ej:'Sentadilla Hack', tipo:'tecnica', txt:'Corrige la posición.'},
+  {fecha:'2026-07-27', ej:'Elevaciones laterales en polea baja', tipo:'tecnica', txt:'Corrige la técnica.'},
+  {fecha:'2026-08-03', ej:'Extensión de cuádriceps', tipo:'tecnica', txt:'La esterilla no es para la lumbar: va entre la canilla y el rodillo, para dar más recorrido a la pierna.'},
+  {fecha:'2026-08-10', ej:'Peso muerto rumano con barra', tipo:'tecnica', txt:'Corrección por audios de WhatsApp (lo visteis en la llamada).'},
+  {fecha:'2026-08-10', ej:'Elevaciones laterales en polea baja', tipo:'tecnica', txt:'Intención de separar el brazo del cuerpo, como si quisieras tocar la pared.'},
+  {fecha:'2026-08-10', ej:'Extensión de cuádriceps', tipo:'tecnica', txt:'Asiento más atrás, para que la articulación no te quede en el aire.'},
+  {fecha:'2026-08-10', ej:'Curl de bíceps predicador', tipo:'tecnica', txt:'Cógelo más cerrado, un palmo.'},
+  {fecha:'2026-08-10', ej:'Curl femoral sentado', tipo:'tecnica', txt:'Aprieta 2 segundos la contracción.'},
+  {fecha:'2026-08-24', ej:'Press de banca con barra', tipo:'cambio', txt:'Cambiar a pecho en máquina de discos.'},
+  {fecha:'2026-08-24', ej:'Press militar con mancuernas', tipo:'cambio', txt:'Cambiar a máquina.'},
+  {fecha:'2026-08-24', ej:'Elevaciones laterales con mancuernas', tipo:'cambio', txt:'Cambiar a máquina.'},
+  {fecha:'2026-08-24', ej:'Apertura en máquina', tipo:'tecnica', txt:'Lumbar pegada (colgado) y aprieta glúteo.'},
+  {fecha:'2026-09-14', ej:'Press de banca con barra', tipo:'cambio', txt:'Mejor hazlo en máquina.'}
+];
+const CORR_ICO={tecnica:'🎯', cambio:'🔄', regla:'📌'};
+/* Mismo ejercicio aunque cambie un poco el nombre entre fases ("Curl femoral sentado" = "Femoral sentado") */
+function corrTokens(n){
+  return new Set(String(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' ').split(/\s+/)
+    .filter(w=>w && !['de','del','con','en','la','el','al','a','y','curl'].includes(w))
+    .map(w=>w.length>5&&w.endsWith('es')?w.slice(0,-2):w.endsWith('s')&&w.length>3?w.slice(0,-1):w));
+}
+function mismoEjercicio(a,b){
+  const A=corrTokens(a), B=corrTokens(b); if(!A.size||!B.size) return false;
+  const [p,g]=A.size<=B.size?[A,B]:[B,A]; for(const w of p) if(!g.has(w)) return false; return true;
+}
+function corrTodas(){ return CORR_BASE.map((c,i)=>({...c, id:'b'+i})).concat((S.corr||[]).map((c,i)=>({...c, id:'u'+i, mia:true})))
+  .sort((a,b)=>b.fecha.localeCompare(a.fecha)); }
+function corrDe(nombre){ return corrTodas().filter(c=>c.ej && mismoEjercicio(c.ej, nombre)); }
+function corrReglas(){ return corrTodas().filter(c=>!c.ej); }
+function corrItem(c, conEj=true){
+  const vid=c.video?(S.coachVids||[]).find(v=>v.url===c.video):null;
+  return `<div class="corritem ${c.tipo||'tecnica'}"><span class="pill">${fmtFecha(c.fecha)}</span> ${CORR_ICO[c.tipo]||'🎯'} ${esc(c.txt)}
+    ${c.ej&&conEj?`<div class="note">${esc(c.ej)}</div>`:''}
+    ${vid||c.video?`<div class="note"><a href="${esc(c.video)}" target="_blank" rel="noopener">🎥 ${esc(vid?vid.titulo:'Ver vídeo')}${c.min?' · min '+esc(c.min):''}</a></div>`:''}
+    ${c.mia?`<a href="#" class="note" style="color:var(--bad)" onclick="delCorr(${+c.id.slice(1)});return false">borrar</a>`:''}</div>`;
+}
+function addCorr(ej, txtId, vidId, minId){
+  const txt=document.getElementById(txtId).value.trim(); if(!txt){ toast('Escribe la corrección'); return; }
+  const video=vidId?document.getElementById(vidId).value:'', min=minId?document.getElementById(minId).value.trim():'';
+  S.corr=S.corr||[]; S.corr.push({fecha:todayStr(), ej, tipo:ej?'tecnica':'regla', txt, video, min}); save(); render(); toast('Corrección guardada 📝');
+}
+function delCorr(i){ S.corr.splice(i,1); save(); render(); }
+function toggleCorr(id){ S.ui.corrOpen=S.ui.corrOpen===id?null:id; save(); render(); }
+/* Panel de correcciones dentro de cada ejercicio (Entreno) */
+function corrPanel(ex){
+  const lista=corrDe(ex.n), reglas=corrReglas();
+  return `<div class="corrpanel">
+    ${lista.length?lista.map(corrItem).join(''):'<div class="note">El coach no te dejó correcciones de este ejercicio.</div>'}
+    <div class="note" style="margin-top:8px;font-weight:600">Reglas generales</div>
+    ${reglas.map(corrItem).join('')}
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="corrTxt_${ex.id}" placeholder="Añadir corrección de este ejercicio…" style="flex:1;min-width:0">
+      <button class="btn small" onclick="addCorr('${esc(ex.n).replace(/'/g,"\\'")}','corrTxt_${ex.id}')">➕</button>
+    </div>
+  </div>`;
+}
+/* Vídeos de corrección del coach (enlaces privados: se guardan solo en tu móvil) */
+function addCoachVid(){
+  const url=document.getElementById('cvUrl').value.trim(), titulo=document.getElementById('cvTit').value.trim(), fecha=document.getElementById('cvFecha').value||todayStr();
+  if(!url){ toast('Pega el enlace del vídeo'); return; }
+  S.coachVids=S.coachVids||[]; S.coachVids.push({url, titulo:titulo||'Vídeo de corrección', fecha, nota:''}); save(); render(); toast('Vídeo guardado 🎥');
+}
+function delCoachVid(i){ S.coachVids.splice(i,1); save(); render(); }
+function viewCorrecciones(){
+  const vids=(S.coachVids||[]).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const todas=corrTodas().filter(c=>c.ej), grupos={};
+  for(const c of todas){ const k=Object.keys(grupos).find(g=>mismoEjercicio(g,c.ej))||c.ej; (grupos[k]=grupos[k]||[]).push(c); }
+  const nombres=Object.keys(grupos).sort((a,b)=>grupos[b][0].fecha.localeCompare(grupos[a][0].fecha)||a.localeCompare(b));
+  const allNames=[...new Set(Object.values(ALL_EX).map(e=>e.n))].sort((a,b)=>a.localeCompare(b));
+  return `
+  <div class="card">
+    <div class="exname">🎥 Vídeos de corrección del coach</div>
+    ${vids.length?vids.map((v,i)=>`<div class="vidrow"><a href="${esc(v.url)}" target="_blank" rel="noopener">🎥 ${esc(v.titulo)} · ${fmtFecha(v.fecha)}</a>
+      ${i===0?' <span class="pill acc">el más reciente</span>':''}
+      <input type="text" class="vidnote" placeholder="Resumen / nota…" value="${esc(v.nota||'')}" onchange="S.coachVids.find(x=>x.url==='${esc(v.url)}').nota=this.value;save()">
+      <a href="#" class="note" style="color:var(--bad)" onclick="delCoachVid(${(S.coachVids||[]).indexOf(v)});return false">borrar</a></div>`).join('')
+      :'<div class="note">Aún no has guardado ningún vídeo de corrección.</div>'}
+    <details style="margin-top:8px"><summary class="note" style="cursor:pointer">➕ Añadir vídeo de corrección</summary>
+      <input type="text" id="cvUrl" placeholder="Enlace del vídeo" style="margin-top:6px">
+      <div class="row" style="margin-top:6px"><input type="text" id="cvTit" placeholder="Título (ej: Corrección semana 11-12)" style="flex:1;min-width:0">
+        <input type="date" id="cvFecha" value="${todayStr()}" style="width:auto"></div>
+      <button class="btn primary" style="margin-top:6px;width:100%" onclick="addCoachVid()">Guardar vídeo</button>
+    </details>
+  </div>
+  <h2>📌 Reglas generales</h2>
+  <div class="card">${corrReglas().map(corrItem).join('')}</div>
+  <h2>🎯 Por ejercicio</h2>
+  <div class="card">
+    <div class="field"><label>Añadir corrección</label>
+      <input type="text" id="cNuevaEj" list="exnames2" placeholder="Ejercicio (vacío = regla general)">
+      <datalist id="exnames2">${allNames.map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+      <input type="text" id="cNuevaTxt" placeholder="Qué te corrigió" style="margin-top:6px">
+      <div class="row" style="margin-top:6px">
+        <select id="cNuevaVid" style="flex:1;min-width:0"><option value="">Sin vídeo</option>${vids.map(v=>`<option value="${esc(v.url)}">${esc(v.titulo)} · ${fmtFecha(v.fecha)}</option>`).join('')}</select>
+        <input type="text" id="cNuevaMin" placeholder="min (ej 4:30)" style="width:110px"></div>
+    </div>
+    <button class="btn primary" style="margin-top:8px;width:100%" onclick="addCorr(document.getElementById('cNuevaEj').value.trim(),'cNuevaTxt','cNuevaVid','cNuevaMin')">Guardar corrección</button>
+  </div>
+  <div class="card">
+    ${nombres.map(n=>`<div class="libitem"><div class="exname">${esc(n)}</div>${grupos[n].map(c=>corrItem(c,false)).join('')}</div>`).join('')}
+  </div>`;
+}
+
 /* ================= BIBLIOTECA DE VÍDEOS ================= */
 let libFilter='', vidMuscles=[], vidOrder='az';
 function setLibFilter(v){ libFilter=v.toLowerCase(); render(); }
@@ -1330,6 +1485,14 @@ function vidRow(url,label,note,onchange){
 }
 
 function viewVideos(){
+  const sub=S.ui.vidTab==='corr'?'corr':'biblio';
+  const tabs=`<div class="filterchips" style="margin-top:0;margin-bottom:12px">
+      <span class="chip ${sub==='biblio'?'on-good':''}" onclick="S.ui.vidTab='biblio';save();render()">🎬 Biblioteca</span>
+      <span class="chip ${sub==='corr'?'on-good':''}" onclick="S.ui.vidTab='corr';save();render()">📝 Correcciones del coach</span>
+    </div>`;
+  return tabs + (sub==='corr' ? viewCorrecciones() : viewBiblioteca());
+}
+function viewBiblioteca(){
   const allEx=Object.values(ALL_EX);
   const allNames=[...new Set(allEx.map(e=>e.n))].sort((a,b)=>a.localeCompare(b));
   const catalog=[];
@@ -1857,8 +2020,10 @@ function importJSON(inp){
   const f=inp.files[0]; if(!f) return;
   const r=new FileReader();
   r.onload=()=>{ try{
-    const d=JSON.parse(r.result); if(!d.days&&!d.work&&!d.medidas) throw 0;
+    const d=JSON.parse(r.result); if(!d.days&&!d.work&&!d.medidas&&!d.coachVids&&!d.corr) throw 0;
     for(const [f,m] of Object.entries(d.medidas||{})) if(!medTiene(S.medidas[f])) S.medidas[f]=m;
+    S.coachVids=S.coachVids||[]; for(const v of d.coachVids||[]) if(!S.coachVids.some(x=>x.url===v.url)) S.coachVids.push(v);
+    S.corr=S.corr||[]; for(const c of d.corr||[]) if(!S.corr.some(x=>x.txt===c.txt&&x.ej===c.ej)) S.corr.push(c);
     // COMBINA (no reemplaza): lo importado rellena huecos; lo que ya tienes manda si coincide
     // días: campo a campo; lo que ya tienes manda, pero un campo vacío no pisa un dato importado
     const lleno=v=>!(v===''||v==null||(typeof v==='object'&&!Object.keys(v).length));
