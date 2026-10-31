@@ -152,6 +152,8 @@ table.xl td.lbl{text-align:left; color:var(--muted); font-size:12px}
 .corritem{font-size:13px; line-height:1.4; padding:6px 0; border-top:1px solid var(--line)}
 .corritem:first-child{border-top:0}
 .corritem.cambio{color:var(--bad)}
+.corritem.bien{color:var(--good)}
+.corritem.pendiente{opacity:.85; font-style:italic}
 .corritem .pill{font-size:10.5px}
 .medgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-top:10px}
 .medgrid .field{min-width:0; display:flex; flex-direction:column; justify-content:flex-end}
@@ -519,6 +521,11 @@ function loadStep(ex, c, dir){
    Se activa solo cuando una subida de peso salió mal (no llegaste al mínimo o te quedaste corto),
    o a mano desde el ejercicio. S.tecnica[nombre] = true/false fuerza el modo. */
 const TEC_META=17, TEC_TECHO=18;
+/* "Prioridad repeticiones" (vídeo de corrección semana 11): en todos los ejercicios suma 2-5 reps por serie
+   con el mismo peso, aunque pases de 20; prefiere subir reps antes que peso (obliga a mantener la técnica,
+   sin rebotes). Solo se sube peso cuando todas las series llegan a REPS_TOPE. S.prioReps=false lo desactiva. */
+const REPS_TOPE=25;
+function prioReps(){ return S.prioReps!==false; }
 function cargaMax(h){ const cs=h.ser.map(s=>numKg(s.c)).filter(x=>x!=null); return cs.length?Math.max(...cs):0; }
 function subidaFallida(h, ant, lo){ return cargaMax(h)>cargaMax(ant) && ((parseFloat(h.ser[0].r)||0)<lo || h.e.res==='corto'); }
 function tecnicaPrimero(ex, hist, lo){
@@ -561,8 +568,30 @@ function autoTip(ex, f, d, micro){
   // la última subida de peso salió mal → vuelve al peso anterior y sube reps hasta 17-18
   if(tec && hist.length>=2 && subidaFallida(last, hist[1], lo)){
     const ant=hist[1], pc=cargaMax(ant), pr=ant.ser.slice(0,n).map(s=>parseFloat(s.r)||lo);
-    const t=[]; for(let i=0;i<n;i++){ let v=Math.min(techo, (pr[i]??pr[0])+1); if(i>0) v=Math.min(v,t[i-1]); t.push(v); }
-    return {texto:`${pc?kg(pc):''}${t.join('-')}`, porque:`Al subir a ${fmtKg(c)} kg no llegaste. Corrección del coach: vuelve a ${fmtKg(pc)} kg y sube repeticiones hasta ${TEC_META}-${TEC_TECHO}; entonces sube peso.`, hecho, tipo:'cuidado'};
+    const prio=prioReps();
+    const t=[]; for(let i=0;i<n;i++){ let v=(pr[i]??pr[0])+(prio?2:1); if(!prio) v=Math.min(techo,v); if(i>0) v=Math.min(v,t[i-1]); t.push(v); }
+    return {texto:`${pc?kg(pc):''}${t.join('-')}`, porque:`Al subir a ${fmtKg(c)} kg no llegaste. Corrección del coach: vuelve a ${fmtKg(pc)} kg y sube repeticiones${prio?'':` hasta ${TEC_META}-${TEC_TECHO}`}; entonces sube peso.`, hecho, tipo:'cuidado'};
+  }
+  // prioridad repeticiones: mismo peso y +2-5 reps por serie (más cuanto más RIR te sobró), sin techo hasta REPS_TOPE
+  if(prioReps() && !(reps[0]<lo && conPeso && rmin!=null && rmin<=1)){
+    if(reps.length>=n && reps.every(r=>r>=REPS_TOPE)){
+      if(!conPeso) return {texto:`Añade un disco · a ${TEC_META}`, porque:`Llegaste a ${REPS_TOPE} reps en todas las series: ahora sí, añade carga.`, hecho, tipo:'sube'};
+      const nc=loadStep(ex,c,+1);
+      return {texto:`${nc!=null?kg(nc):'Sube un escalón · '}a ${TEC_META}`, porque:`Llegaste a ${REPS_TOPE} reps en todas las series con el mismo peso → ahora sí, sube un escalón.${nc==null?' Apunta el peso nuevo al hacerlo.':''}`, hecho, tipo:'sube'};
+    }
+    const corto=last.e.res==='corto', t=[], pasos=[];
+    for(let i=0;i<n;i++){
+      const r=reps[i]>0 ? reps[i] : (t[i-1]!=null?t[i-1]:lo), rir=rirs[i];
+      const paso = corto ? 0 : rir==null ? 2 : rir>=4 ? 5 : rir>=3 ? 4 : rir>=2 ? 3 : 2;
+      let v=Math.max(lo, r+paso);
+      if(i>0) v=Math.min(v, t[i-1]);           // la 1ª serie siempre ≥ la 2ª
+      t.push(v); pasos.push(v-r);
+    }
+    const pos=pasos.filter(p=>p>0), pmin=pos.length?Math.min(...pos):2, pmax=pos.length?Math.max(...pos):2;
+    return {texto:`${conPeso?kg(c):''}${t.join('-')}`,
+            porque: corto ? 'Te quedaste corto: repite el mismo objetivo, con negativa controlada y sin rebote.'
+                          : `Corrección del coach: mismo peso y +${pmin}${pmax>pmin?'-'+pmax:''} reps por serie (aunque pases de 20). Sube reps antes que peso: negativa controlada, 1 s de pausa abajo y sin rebote.`,
+            hecho, tipo:corto?'mantener':'reps'};
   }
   const tope = reps.length>=n && reps.every(r=>r>=meta);
   const sobra = !tec && rmin!=null && rmin>=4 && reps.every(r=>r>=lo);
@@ -1348,6 +1377,33 @@ function renderMealCard(meal, st){
    tipo: tecnica · cambio (de ejercicio) · regla (general, vale para todos los ejercicios).
    Las que añadas tú (por ejemplo, de sus vídeos de corrección) se guardan en S.corr, solo en tu móvil. */
 const CORR_BASE = [
+  // vídeo de corrección semana 11 (vídeos del 19 al 28/10). "(probable)" = ejercicio deducido de la imagen, no lo nombra
+  {fecha:'2026-10-31', ej:'', tipo:'regla', vid:'semana 11', txt:'LO MÁS IMPORTANTE · Suma 2-5 repeticiones en todos los ejercicios, aunque en alguno pases de 20. Prefiere subir repeticiones antes que peso: obliga a concentrarte en la técnica y no hacer trampas.'},
+  {fecha:'2026-10-31', ej:'', tipo:'regla', vid:'semana 11', txt:'Error que repites en casi todo: dejas caer la negativa y rebotas. Negativa controlada (sin exagerar), ~1 s de pausa abajo / en el estiramiento sin perder tensión, y sacas la rep desde ahí. Arriba, llega al final y para.'},
+  {fecha:'2026-10-31', ej:'', tipo:'regla', vid:'semana 11', txt:'Estandariza la velocidad: no corras. Si vas rápido no llegas al recorrido completo y te comes el rango que ganas con la esterilla. La rep tiene que ser muscular, no a rebote.'},
+  {fecha:'2026-10-31', ej:'', tipo:'regla', vid:'semana 11', txt:'Máquinas con eje: la rodilla o el codo tienen que coincidir con el eje de la máquina. Ajusta asiento o respaldo (o pon discos debajo) hasta que coincida.'},
+  {fecha:'2026-10-31', ej:'', tipo:'pendiente', vid:'semana 11', txt:'Pendiente: corregirá con los vídeos de la semana 12 los ejercicios que no se veían bien.'},
+  {fecha:'2026-10-31', ej:'Aductor', tipo:'bien', vid:'semana 11', txt:'Bien hecho. Le gusta la parada al cerrar, bien agarrado y bien sentado.'},
+  {fecha:'2026-10-31', ej:'Femoral sentado', tipo:'tecnica', vid:'semana 11', txt:'Recorrido y posición muy buenos. Fallo: en la negativa los pies suben muy rápido y rebotas. Clava 1 s la contracción, controla la negativa y para antes de la siguiente rep. Coge aire entre reps; no vayas con inercia.'},
+  {fecha:'2026-10-31', ej:'Sentadilla hack', tipo:'tecnica', vid:'semana 11', txt:'(probable) La cadera siempre pegada al respaldo. Como pegas mucho la parte de arriba, la cadera tiende a separarse: prioridad al revés; si la parte alta de las escápulas se separa un poco, no pasa nada.'},
+  {fecha:'2026-10-31', ej:'Extensión de cuádriceps', tipo:'tecnica', vid:'semana 11', txt:'Esterilla muy bien puesta. Asiento quizá un poco más atrás, más tumbado: la rodilla tiene que coincidir con el eje (rodilla por delante del eje → échate atrás; por detrás → adelante).'},
+  {fecha:'2026-10-31', ej:'Extensión de cuádriceps', tipo:'tecnica', vid:'semana 11', txt:'Baja hasta atrás del todo controlando y, cuando las placas casi tocan, sube sin perder tensión. Por ir rápido no bajas del todo y te comes el recorrido de la esterilla.'},
+  {fecha:'2026-10-31', ej:'Hiperextensión', tipo:'tecnica', vid:'semana 11', txt:'(probable) Fuerza a bajar un poco más y elongar un poco más, a ver cómo te sientes. Lo demás, bien.'},
+  {fecha:'2026-10-31', ej:'Predicador en máquina de placas', tipo:'tecnica', vid:'semana 11', txt:'El codo alineado con el eje de la máquina (el circulito). Quizá tienes el asiento muy bajo: lo marca el eje. No corras en las reps: negativa y subida controladas.'},
+  {fecha:'2026-10-31', ej:'Curl de bíceps con mancuernas (sentado)', tipo:'tecnica', vid:'semana 11', txt:'Sin giro de muñeca: la mano en supino (palma hacia arriba) desde el principio, no empieces en neutro. Brazo fijo y sube directo. Bien sentado y apoyado.'},
+  {fecha:'2026-10-31', ej:'Apertura en máquina', tipo:'tecnica', vid:'semana 11', txt:'Baja el trapecio, pega bien la espalda atrás y saca pecho. Al cerrar te hundes hacia delante: empuja atrás con la espalda. Que el cuerpo no se mueva tanto y no dejes caer la negativa.'},
+  {fecha:'2026-10-31', ej:'Abductor', tipo:'bien', vid:'semana 11', txt:'Bien hecho. Solo intenta no correr.'},
+  {fecha:'2026-10-31', ej:'Hip thrust', tipo:'cambio', vid:'semana 11', txt:'Cambia de máquina: esa es la peor porque el peso va muy adelante. Hay máquinas nuevas de hip thrust en tu gimnasio (pendiente: te dirá cuál por WhatsApp).'},
+  {fecha:'2026-10-31', ej:'Hip thrust', tipo:'tecnica', vid:'semana 11', txt:'Pies demasiado abiertos y rodillas hacia dentro. Pies a la anchura de la cadera, puntas ligeramente hacia fuera y rodillas apuntando hacia fuera.'},
+  {fecha:'2026-10-31', ej:'Sentadilla búlgara', tipo:'tecnica', vid:'semana 11', txt:'Muy bien hecha, pero a mejorar: 2-3 discos bajo el pie delantero (el cajón está muy alto) para ganar profundidad y más glúteo.'},
+  {fecha:'2026-10-31', ej:'Sentadilla búlgara', tipo:'tecnica', vid:'semana 11', txt:'Hazla junto a un apoyo: mancuerna en el lado interno y la mano de fuera como raíl, solo deslizando. Si pierdes el equilibrio, empuja contra el apoyo; nunca tires con el brazo.'},
+  {fecha:'2026-10-31', ej:'Sentadilla búlgara', tipo:'pendiente', vid:'semana 11', txt:'Pendiente: te pasará un vídeo de referencia de cómo la quiere.'},
+  {fecha:'2026-10-31', ej:'Jalón al pecho', tipo:'tecnica', vid:'semana 11', txt:'Cuerpo arqueado y te mueves a todos lados. Antes de la 1ª rep: te sientas, coges la barra, bajas el trapecio, metes el abdomen y lo dejas contraído, piernas apretando contra el rodillo. Tira, para abajo y saca la siguiente. No te eches atrás.'},
+  {fecha:'2026-10-31', ej:'Jalón en máquina de discos', tipo:'tecnica', vid:'semana 11', txt:'(probable) Dejas caer la máquina en vez de controlar el peso. Brazos bien puestos. Cambio: hazlo con agarre neutro, más cómodo y le saca más partido.'},
+  {fecha:'2026-10-31', ej:'Jalón en máquina de discos', tipo:'tecnica', vid:'semana 11', txt:'Mismo protocolo que el jalón al pecho: trapecio abajo, abdomen contraído, sin balancearte atrás.'},
+  {fecha:'2026-10-31', ej:'Remo en máquina agarre abierto', tipo:'tecnica', vid:'semana 11', txt:'(probable) El peor colocado de la semana: sube el asiento para que el brazo tenga el ángulo correcto; si al máximo no basta, pon 1-2 discos debajo. El movimiento está bien; controla la negativa.'},
+  {fecha:'2026-10-31', ej:'Curl de bíceps en polea baja', tipo:'tecnica', vid:'semana 11', txt:'(probable) Te apuras y no terminas de subir: cuando toca hacer fuerza vuelves abajo. Llega hasta arriba y baja controlado (baja, baja, baja, para).'},
+  {fecha:'2026-10-31', ej:'Elevación lateral en máquina de placas', tipo:'tecnica', vid:'semana 11', txt:'No te agarres a la máquina con la mano libre. O sentado normal apoyando el brazo libre estirado, o sentado al revés con pecho y frente en el respaldo, como te sea más cómodo.'},
   {fecha:'2026-10-30', ej:'', tipo:'regla', txt:'Si no puedes subir peso porque se te va la técnica: mantén el peso y sube repeticiones hasta 17-18. Entonces sí, sube peso.'},
   {fecha:'2026-07-27', ej:'', tipo:'regla', txt:'En las máquinas de discos y la barra, cuenta solo el peso de los discos.'},
   {fecha:'2026-07-27', ej:'Prensa inclinada', tipo:'tecnica', txt:'Bájale 20-40 kg y aplica la corrección de técnica.'},
@@ -1369,7 +1425,7 @@ const CORR_BASE = [
   {fecha:'2026-08-24', ej:'Apertura en máquina', tipo:'tecnica', txt:'Lumbar pegada (colgado) y aprieta glúteo.'},
   {fecha:'2026-09-14', ej:'Press de banca con barra', tipo:'cambio', txt:'Mejor hazlo en máquina.'}
 ];
-const CORR_ICO={tecnica:'🎯', cambio:'🔄', regla:'📌'};
+const CORR_ICO={tecnica:'🎯', cambio:'🔄', regla:'📌', bien:'✅', pendiente:'⏳'};
 /* Mismo ejercicio aunque cambie un poco el nombre entre fases ("Curl femoral sentado" = "Femoral sentado") */
 function corrTokens(n){
   return new Set(String(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9 ]/g,' ').split(/\s+/)
@@ -1385,7 +1441,10 @@ function corrTodas(){ return CORR_BASE.map((c,i)=>({...c, id:'b'+i})).concat((S.
 function corrDe(nombre){ return corrTodas().filter(c=>c.ej && mismoEjercicio(c.ej, nombre)); }
 function corrReglas(){ return corrTodas().filter(c=>!c.ej); }
 function corrItem(c, conEj=true){
-  const vid=c.video?(S.coachVids||[]).find(v=>v.url===c.video):null;
+  // c.vid: parte del título del vídeo guardado en el móvil (los enlaces privados no van en el código)
+  const vid=c.video?(S.coachVids||[]).find(v=>v.url===c.video)
+          :c.vid?(S.coachVids||[]).find(v=>(v.titulo||'').toLowerCase().includes(c.vid)):null;
+  if(vid && !c.video) c={...c, video:vid.url};
   return `<div class="corritem ${c.tipo||'tecnica'}"><span class="pill">${fmtFecha(c.fecha)}</span> ${CORR_ICO[c.tipo]||'🎯'} ${esc(c.txt)}
     ${c.ej&&conEj?`<div class="note">${esc(c.ej)}</div>`:''}
     ${vid||c.video?`<div class="note"><a href="${esc(c.video)}" target="_blank" rel="noopener">🎥 ${esc(vid?vid.titulo:'Ver vídeo')}${c.min?' · min '+esc(c.min):''}</a></div>`:''}
@@ -1440,6 +1499,12 @@ function viewCorrecciones(){
     </details>
   </div>
   <h2>📌 Reglas generales</h2>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center;gap:8px">
+      <div><b>🔁 Prioridad repeticiones</b><div class="note">La progresión automática suma 2-5 reps con el mismo peso y solo sube peso cuando llegas a ${REPS_TOPE} reps en todas las series.</div></div>
+      <button class="btn small${prioReps()?' primary':''}" onclick="S.prioReps=!prioReps();save();render()">${prioReps()?'Activa':'Desactivada'}</button>
+    </div>
+  </div>
   <div class="card">${corrReglas().map(corrItem).join('')}</div>
   <h2>🎯 Por ejercicio</h2>
   <div class="card">

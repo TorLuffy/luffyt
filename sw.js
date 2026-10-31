@@ -1,6 +1,6 @@
 /* Service worker de Luffyt — cachea la app para que funcione 100% sin internet.
    Sube la versión (CACHE) cada vez que cambie la app para forzar la actualización. */
-const CACHE = 'luffyt-v42';
+const CACHE = 'luffyt-v43';
 const ASSETS = [
   './',
   './index.html',
